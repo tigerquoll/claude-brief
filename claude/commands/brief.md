@@ -1,0 +1,13 @@
+---
+description: Open/focus the docked iTerm2 pane showing this session's live brief
+argument-hint: "[float|refresh]"
+allowed-tools: Bash(~/.claude/bin/induct-open.sh:*)
+---
+This session's running brief (state · what's been tried · gotchas · decisions ·
+next) is shown in a docked iTerm2 pane — a side-by-side split, opened or
+re-focused just now. It refreshes itself after every completed turn.
+
+!`~/.claude/bin/induct-open.sh $ARGUMENTS`
+
+Acknowledge in ONE short line that the brief dock is up — or, if the command
+above reported an error, relay that error. Do NOT reproduce the brief here.
