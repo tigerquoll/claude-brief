@@ -1,8 +1,8 @@
 {
   "Profiles": [
     {
-      "Name": "induct",
-      "Guid": "induct-dock-profile",
+      "Name": "brief",
+      "Guid": "brief-dock-profile",
       "Dynamic Profile Parent Name": "Default",
       "Vertical Spacing": 1.2,
       "Horizontal Spacing": 1.0

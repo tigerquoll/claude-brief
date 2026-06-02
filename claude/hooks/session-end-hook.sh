@@ -10,7 +10,7 @@ sid=$(printf '%s' "$input" | jq -r '.session_id // empty')
 case "$sid" in *[!0-9a-fA-F-]*) exit 0 ;; esac
 
 st="$HOME/.claude/state"
-known=$(cat "$st/$sid.induct.session" 2>/dev/null)
+known=$(cat "$st/$sid.brief.session" 2>/dev/null)
 case "$known" in *[!0-9a-fA-F-]*) known="" ;; esac   # only act on a UUID-shaped id
 
 if [ -n "$known" ]; then
@@ -27,5 +27,5 @@ end tell
 OSA
 fi
 
-rm -f "$st/$sid.induct.session" "$st/$sid.induct.pid" "$st/$sid.induct.seen"
+rm -f "$st/$sid.brief.session" "$st/$sid.brief.pid" "$st/$sid.brief.seen"
 exit 0

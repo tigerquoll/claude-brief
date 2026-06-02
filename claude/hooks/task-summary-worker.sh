@@ -4,7 +4,7 @@
 #   ▸ now:  <most recent sub-task>     (Haiku-summarized)
 # and maintains a richer living brief in ~/.claude/state/<sid>.brief.md
 # (State / Tried / Gotchas / Decisions / Next) produced by the SAME Haiku call,
-# so tabbing back into a session can re-induct you on demand (see /induct).
+# so tabbing back into a session can re-brief you on demand (see /brief).
 #
 # Triggered by the Stop hook (once per completed agent turn), so the labels are
 # fresh whenever you tab back to this terminal. Uses `claude -p` with Haiku to
@@ -63,7 +63,7 @@ Be concrete — name files, tools, or components. Prefer specifics over generic 
 
 Then a line containing ONLY: ===BRIEF===
 
-PART 2 — a living session brief in GitHub markdown that re-inducts a developer who just tabbed back in. UPDATE the previous brief (given below) with what changed this turn; do NOT regenerate from scratch. Preserve durable knowledge; drop resolved or stale items from State and Next. Be concrete: name files, errors, commands, line numbers. Keep it tight: at most 40 lines, terse bullets. Use EXACTLY these sections, in order, each always present (use a single "—" when a section is empty):
+PART 2 — a living session brief in GitHub markdown that re-briefs a developer who just tabbed back in. UPDATE the previous brief (given below) with what changed this turn; do NOT regenerate from scratch. Preserve durable knowledge; drop resolved or stale items from State and Next. Be concrete: name files, errors, commands, line numbers. Keep it tight: at most 40 lines, terse bullets. Use EXACTLY these sections, in order, each always present (use a single "—" when a section is empty):
 # <one-line goal>
 ## State
 ## Tried

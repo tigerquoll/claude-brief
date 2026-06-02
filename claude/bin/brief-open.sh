@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Open — or re-focus + reload — the docked iTerm2 pane showing this session's
 # live brief. Singleton: re-running focuses the existing dock AND relaunches the
-# viewer with the latest script. Run from /induct's bash (inherits $ITERM_SESSION_ID).
-#   usage: induct-open.sh [float|refresh]
+# viewer with the latest script. Run from /brief's bash (inherits $ITERM_SESSION_ID).
+#   usage: brief-open.sh [float|refresh]
 #     (default) dock : vertical split (side-by-side) in the current iTerm2 window
 #     float          : a separate iTerm2 window instead
 #     refresh        : regenerate the brief now (detached), then open the dock
@@ -48,8 +48,8 @@ if [ "$refresh" = 1 ]; then
   [ -n "$tp" ] && nohup "$HOME/.claude/hooks/task-summary-worker.sh" "$sid" "$tp" >/dev/null 2>&1 &
 fi
 
-sess_file="$state_dir/$sid.induct.session"   # iTerm2 session id of this session's dock
-cmd="$HOME/.claude/bin/induct-view.sh $sid"
+sess_file="$state_dir/$sid.brief.session"   # iTerm2 session id of this session's dock
+cmd="$HOME/.claude/bin/brief-view.sh $sid"
 known=""
 [ -f "$sess_file" ] && known=$(cat "$sess_file")
 case "$known" in *[!0-9a-fA-F-]*) known="" ;; esac   # ignore a tampered/garbled .session id
@@ -81,11 +81,11 @@ tell application "iTerm2"
   -- create the fresh dock; create/split take no 'command' param in 3.6 and
   -- create returns 'missing value', so grab current session + write text.
   if "$mode" is "float" then
-    create window with profile "induct"
+    create window with profile "brief"
     set newSess to (current session of current window)
   else
     tell current session of current window
-      set newSess to (split vertically with profile "induct")
+      set newSess to (split vertically with profile "brief")
     end tell
   end if
   tell newSess to write text "$cmd"

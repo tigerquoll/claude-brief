@@ -21,13 +21,11 @@ iTerm2 — so you can tab between many concurrent sessions and instantly re-orie
 ## Files (mirror of the live `~/.claude` layout)
 ```
 claude/hooks/      task-prompt-hook.sh task-summary-hook.sh task-summary-worker.sh session-end-hook.sh
-claude/bin/        induct-open.sh induct-view.sh induct-prune.sh
+claude/bin/        brief-open.sh brief-view.sh brief-prune.sh
 claude/commands/   brief.md
-claude/glow-induct.json
-iterm2/DynamicProfiles/induct.json     (Default profile + 1.2x line spacing)
+claude/glow-brief.json
+iterm2/DynamicProfiles/brief.json      (Default profile + 1.2x line spacing)
 ```
-(Internal scripts keep the historical `induct-*` names; only the user-facing
-command is `brief`.)
 
 ## Install / sync / restore
 - `./install.sh` — copy repo → `~/.claude` (+ the iTerm2 profile). Use to restore

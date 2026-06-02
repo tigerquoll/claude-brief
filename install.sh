@@ -8,7 +8,7 @@ mkdir -p ~/.claude/hooks ~/.claude/bin ~/.claude/commands "$HOME/Library/Applica
 cp "$root"/claude/hooks/*.sh ~/.claude/hooks/
 cp "$root"/claude/bin/*.sh ~/.claude/bin/
 cp "$root"/claude/commands/*.md ~/.claude/commands/
-cp "$root"/claude/glow-induct.json ~/.claude/
-cp "$root"/iterm2/DynamicProfiles/induct.json "$HOME/Library/Application Support/iTerm2/DynamicProfiles/"
+cp "$root"/claude/glow-brief.json ~/.claude/
+cp "$root"/iterm2/DynamicProfiles/brief.json "$HOME/Library/Application Support/iTerm2/DynamicProfiles/"
 chmod +x ~/.claude/hooks/*.sh ~/.claude/bin/*.sh
 echo "installed brief-dock files into ~/.claude  (add the settings.json hooks per README)"

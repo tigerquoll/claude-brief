@@ -17,7 +17,7 @@ umask 077   # state files can summarize sensitive session content -> keep them p
 prunestamp="$HOME/.claude/state/.prune-stamp"
 if [ ! -f "$prunestamp" ] || [ "$(( $(date +%s) - $(stat -f %m "$prunestamp" 2>/dev/null || echo 0) ))" -gt 86400 ]; then
   mkdir -p "$HOME/.claude/state"; : > "$prunestamp"
-  nohup "$HOME/.claude/bin/induct-prune.sh" >/dev/null 2>&1 &
+  nohup "$HOME/.claude/bin/brief-prune.sh" >/dev/null 2>&1 &
 fi
 
 # --- Skip trivial turns (Haiku cost guard) ---------------------------------

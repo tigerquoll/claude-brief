@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Live viewer for a session brief, run inside the docked iTerm2 pane that
-# /induct opens. Redraws ONLY when the brief changes (fork-free `-nt` test) or
+# /brief opens. Redraws ONLY when the brief changes (fork-free `-nt` test) or
 # the width changes; the idle loop forks just `tput`+`sleep`. Paints on the ALT
 # SCREEN buffer (like top/less) so a brief that fits the pane shows no scroll bar.
-#   usage: induct-view.sh <session-id>
+#   usage: brief-view.sh <session-id>
 sid="$1"
-[ -z "$sid" ] && { echo "induct-view: no session id given"; exit 1; }
-case "$sid" in *[!0-9a-fA-F-]*) echo "induct-view: invalid (non-UUID) session id"; exit 1 ;; esac
+[ -z "$sid" ] && { echo "brief-view: no session id given"; exit 1; }
+case "$sid" in *[!0-9a-fA-F-]*) echo "brief-view: invalid (non-UUID) session id"; exit 1 ;; esac
 
 state_dir="$HOME/.claude/state"
 brief="$state_dir/$sid.brief.md"
-pidf="$state_dir/$sid.induct.pid"
-marker="$state_dir/$sid.induct.seen"   # mtime bumped after each render -> fork-free change detect
+pidf="$state_dir/$sid.brief.pid"
+marker="$state_dir/$sid.brief.seen"   # mtime bumped after each render -> fork-free change detect
 skipf="$state_dir/$sid.skipped"        # trivial-turn skip counter (written by the Stop hook)
 echo $$ > "$pidf"
 
@@ -46,7 +46,7 @@ render() {
   if command -v glow >/dev/null 2>&1; then
     # glow word-wraps at wrapw (breaks at spaces -> identifiers stay whole); _ifmt
     # adds the gutter/hang indent. render() re-runs on resize, so it reflows.
-    gs="$HOME/.claude/glow-induct.json"
+    gs="$HOME/.claude/glow-brief.json"
     # CLICOLOR_FORCE: glow strips color when its stdout is a pipe (it is -> _ifmt)
     # </dev/null so glow never blocks reading stdin (it does when stdin is a pipe)
     if [ -f "$gs" ]; then CLICOLOR_FORCE=1 glow -s "$gs" -w "$wrapw" "$brief" </dev/null | _ifmt
