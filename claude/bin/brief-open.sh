@@ -80,9 +80,26 @@ tell application "iTerm2"
   end if
   -- create the fresh dock; create/split take no 'command' param in 3.6 and
   -- create returns 'missing value', so grab current session + write text.
+  -- Anchor the split to the brief's OWN pane (the session whose id == \$pane, the
+  -- pane that ran /brief) rather than whatever is frontmost — otherwise a delayed
+  -- /brief docks beside the wrong tab if you've switched away in the meantime.
+  set anchor to missing value
+  if "$pane" is not "" then
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with s in sessions of t
+          if (id of s) is "$pane" then set anchor to s
+        end repeat
+      end repeat
+    end repeat
+  end if
   if "$mode" is "float" then
     create window with profile "brief"
     set newSess to (current session of current window)
+  else if anchor is not missing value then
+    tell anchor
+      set newSess to (split vertically with profile "brief")
+    end tell
   else
     tell current session of current window
       set newSess to (split vertically with profile "brief")
