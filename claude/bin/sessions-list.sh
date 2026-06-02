@@ -28,3 +28,4 @@ for t in $(ls -t "$st"/*.task 2>/dev/null); do
   found=1
 done
 [ "$found" = 0 ] && echo "(no sessions tracked yet)"
+exit 0   # never exit non-zero just because the last test was false (it fails the /sessions command)
