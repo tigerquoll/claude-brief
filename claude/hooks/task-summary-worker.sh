@@ -6,8 +6,9 @@
 # (State / Tried / Gotchas / Decisions / Next) produced by the SAME Haiku call,
 # so tabbing back into a session can re-brief you on demand (see /brief).
 #
-# Triggered by the Stop hook (once per completed agent turn), so the labels are
-# fresh whenever you tab back to this terminal. Uses `claude -p` with Haiku to
+# Triggered by the Stop hook (once per completed agent turn) and on demand by the
+# /brief dock (its 'r' key and interval refresh call this directly), so the labels
+# are fresh whenever you tab back to this terminal. Uses `claude -p` with Haiku to
 # reuse existing Claude auth (OAuth; no API keys to manage), run as lean as
 # possible to minimize cost:
 #   - MCP disabled + built-in tools disabled -> ~9k fewer prefix tokens

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Live viewer for a session brief, run inside the docked iTerm2 pane that
-# /brief opens. Redraws ONLY when the brief changes (fork-free `-nt` test) or
-# the width changes; the idle loop forks just `tput`+`sleep`. Paints on the ALT
-# SCREEN buffer (like top/less) so a brief that fits the pane shows no scroll bar.
+# /brief opens. Full-redraws only when the brief changes (fork-free `-nt` test)
+# or the pane is resized; otherwise just reprints the footer line. The loop polls
+# ~2x/s via `read -t`, which doubles as the keypress reader (r/a/i/+/-/?/q).
+# Paints on the ALT SCREEN buffer (like top/less) so a brief that fits the pane
+# shows no scroll bar.
 #   usage: brief-view.sh <session-id>
 sid="$1"
 [ -z "$sid" ] && { echo "brief-view: no session id given"; exit 1; }
@@ -13,7 +15,7 @@ brief="$state_dir/$sid.brief.md"
 pidf="$state_dir/$sid.brief.pid"
 marker="$state_dir/$sid.brief.seen"   # mtime bumped after each render -> fork-free change detect
 skipf="$state_dir/$sid.skipped"        # trivial-turn skip counter (written by the Stop hook)
-donef="$state_dir/$sid.brief.done"     # bumped by the worker when a refresh attempt finishes (even if UNCHANGED)
+donef="$state_dir/$sid.brief.done"     # outcome word the worker writes at the end of each attempt: updated/unchanged/timeout/error
 echo $$ > "$pidf"
 
 cleanup() { tput rmcup 2>/dev/null; tput cnorm 2>/dev/null; rm -f "$pidf" "$marker"; exit 0; }
@@ -67,7 +69,7 @@ render() {
 }
 
 # Relative-age bucket -> sets $AGE (pure arithmetic, no fork). Coarse buckets, so
-# the footer only changes at 15/30/45s, 1/2/5/10/20/30m, 1/2/3/5/10h.
+# the footer only changes at 15/30/45s, 1/2/5/10/20/30/45m, 1/2/3/5/10h.
 agebucket() {
   local a=$1
   if   [ "$a" -lt 15 ];    then AGE="just now"
