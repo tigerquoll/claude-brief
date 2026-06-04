@@ -57,6 +57,9 @@ iterm2/DynamicProfiles/brief.json      (Default profile + 1.2x line spacing)
   missing. Use to restore or set up a new machine.
 - `./install.sh --check` — run only the dependency check; install nothing.
 - `./sync.sh` — copy live `~/.claude` → repo. Run before committing local tweaks.
+- `./test.sh` — regression tests (run after install/sync). Drives the live
+  `~/.claude` scripts with throwaway sessions + fake summarisers (no real model
+  calls); exit status = number of failures.
 - **`~/.claude/settings.json` hook entries** (add by hand — settings.json is not
   committed, to avoid leaking config):
   ```
