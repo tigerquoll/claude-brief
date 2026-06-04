@@ -135,6 +135,13 @@ res=$( BRIEF_SYS="$sys" BRIEF_USR="$usr" CLAUDE_TASK_SUMMARY=1 \
         2>/dev/null )
 rc=$?   # 0 ok · 124/142 = watchdog timeout · other non-zero = summariser failure
 
+# Clean up the summariser's byproduct ASAP, whichever summariser ran: the default
+# (claude -p) leaves an inner-claude transcript per call in the neutral sumcwd
+# project dir. Age-based (older than the 90s watchdog) so an in-flight run's
+# transcript is never deleted; a no-op when there's nothing (e.g. the API plug-in).
+sumproj="$HOME/.claude/projects/$(printf '%s' "$HOME/.claude/state/.sumcwd" | tr '/.' '-')"
+[ -d "$sumproj" ] && find "$sumproj" -type f -mmin +2 -delete 2>/dev/null
+
 # Split the response into the 2-line label and the brief (after the marker).
 case "$res" in
   *"===BRIEF==="*) label_part=${res%%===BRIEF===*}; brief_part=${res#*===BRIEF===} ;;
