@@ -25,6 +25,13 @@ iTerm2 — so you can tab between many concurrent sessions and instantly re-orie
   `~/.claude/brief-summarizer.env` (`chmod 600`, sourced if owned + not
   world/group-writable) to keep the token out of settings.json and out of the
   main Claude session's environment.
+- **What each summary call sends as context:** a display-size directive, the
+  conversation title, the previous brief, your latest prompt, and the recent
+  conversation — the last ~14 user/assistant message **text** blocks, truncated
+  to a few KB. Tool calls and their outputs are **stripped**, so raw file
+  contents / command output are not sent (though the assistant's prose may quote
+  paths, code, or errors). It goes wherever `$BRIEF_SUMMARIZER` targets (default:
+  the same gateway Claude Code already uses).
 - A **`UserPromptSubmit`** hook maps pane/cwd → session id so `/brief` resolves
   which session it's in.
 - The viewer renders the brief with `glow` + a perl post-processor (gutter, indent

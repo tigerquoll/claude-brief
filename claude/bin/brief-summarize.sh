@@ -8,8 +8,13 @@
 # it lives UNDER ~/.claude/ (e.g. ~/.claude/bin/), with no '..', and is an
 # executable, user-owned, non-world-writable file — else the worker uses this
 # default. Interface:
-#   in:   $BRIEF_SYS   system prompt
-#         $BRIEF_USR   user prompt
+#   in:   $BRIEF_SYS   system prompt (the static format/instructions)
+#         $BRIEF_USR   user prompt — contains, as context: a display-size
+#                      directive, the session title, the previous brief, the
+#                      latest user prompt, and the recent conversation (last ~14
+#                      user/assistant TEXT blocks; tool calls + their outputs are
+#                      stripped, so no raw file contents / command output), each
+#                      truncated to a few KB.
 #   out:  the raw response on STDOUT — two lines "goal: …" / "now: …", then a
 #         line "===BRIEF===", then the brief markdown (or just "UNCHANGED" after
 #         the marker if nothing changed). Exit 0; empty output (or non-zero exit)
