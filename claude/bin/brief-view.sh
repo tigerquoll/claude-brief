@@ -271,10 +271,12 @@ while :; do
       repaint_footer   # begin_refresh armed the leading spinner
     fi
   fi
-  # Idle pacing AND input in one wait: up to 0.5s for a keypress (the poll
-  # interval). r refresh · a auto · i interval · +/- period · ? help · q quit.
-  # Fractional -t needs bash 4+, already required here ($EPOCHSECONDS is bash 5+).
-  read -rsn1 -t 0.5 key || key=""
+  # Idle pacing AND input in one wait: 0.5s normally, 0.25s while a refresh is in
+  # flight so the spinner animates twice as fast (it advances one frame per tick).
+  # r refresh · a auto · i interval · +/- period · ? help · q quit. Fractional -t
+  # needs bash 4+ (already required here: $EPOCHSECONDS is bash 5+).
+  poll=0.5; [ "$refreshing" = 1 ] && poll=0.25
+  read -rsn1 -t "$poll" key || key=""
   case "$key" in
     r|R)
       if [ "$refreshing" = 0 ]; then
