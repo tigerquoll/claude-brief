@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # SessionEnd hook: when a Claude session ends, close its brief dock pane (if one
-# is open) and drop the dock-state files. Leaves <sid>.task/.brief.md for the
-# /sessions overview + the age-based prune. Detached osascript so it never blocks.
+# is open) and DELETE all of that session's brief state — the summary content
+# (<sid>.brief.md / .task) and the ephemeral dock/accounting files — so nothing
+# lingers on disk once the session is gone. The age-based prune (brief-prune.sh)
+# is the backstop for sessions that exit without firing SessionEnd. Detached
+# osascript so it never blocks.
 [ -n "$CLAUDE_TASK_SUMMARY" ] && exit 0   # ignore the summarizer's inner claude
 
 input=$(cat)
@@ -27,7 +30,11 @@ end tell
 OSA
 fi
 
-rm -f "$st/$sid.brief.session" "$st/$sid.brief.pid" "$st/$sid.brief.seen" \
-      "$st/$sid.brief.done" "$st/$sid.brief.noauto" "$st/$sid.brief.size"
-rmdir "$st/$sid.brief.lock" 2>/dev/null   # release a stray summariser lock, if any
+# Remove ALL of this session's brief state (content + ephemeral), not just the
+# dock files. $sid is UUID-validated above, so the glob is safe.
+rm -f "$st/$sid".* 2>/dev/null
+rmdir "$st/$sid.brief.lock" 2>/dev/null    # a dir; rm -f won't take it
+# Drop pane/cwd -> sid map entries that pointed at this (now-ended) session
+# (a still-open session in the same cwd has already rewritten its entry to its own sid).
+grep -lxF "$sid" "$st/panes/"* "$st/cwds/"* 2>/dev/null | while IFS= read -r f; do rm -f "$f"; done
 exit 0
