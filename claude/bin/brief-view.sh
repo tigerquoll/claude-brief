@@ -100,12 +100,11 @@ do_refresh() {
   return 0
 }
 
-# Kick off a refresh and arm the in-flight state: snapshot the done-stamp (so an
-# UNCHANGED finish, which writes no brief, is still detectable), spawn the worker,
-# mark $refreshing. Returns non-zero if nothing started (no transcript). The
-# caller sets the $rtail indicator. Used by both the 'r' key and interval refresh.
+# Kick off a refresh and arm the in-flight state: spawn the worker and mark
+# $refreshing. The loop's done-stamp watcher (which tracks $done_mt) detects when
+# the attempt finishes and with what outcome. Returns non-zero if nothing started
+# (no transcript). Used by both the 'r' key and interval refresh.
 begin_refresh() {
-  refresh_done0=$(stat -f %m "$donef" 2>/dev/null || echo 0)
   do_refresh || return 1
   refreshing=1; refresh_start=$EPOCHSECONDS
 }
@@ -156,8 +155,9 @@ for i in "${!LADDER[@]}"; do
   [ "$d" -lt "$best" ] && { best=$d; intv_idx=$i; }
 done
 intv_int=${LADDER[intv_idx]}; intv_label=$(fmt_int "$intv_int")
-refreshing=0; refresh_start=0; refresh_done0=0; rtail_until=0
-REFRESH_TIMEOUT=95   # viewer backstop for a stuck refresh (the worker's own `timeout 90` + margin)
+refreshing=0; refresh_start=0; rtail_until=0
+done_mt=$(stat -f %m "$donef" 2>/dev/null || echo 0)   # last-seen done-stamp mtime (outcome watcher)
+REFRESH_TIMEOUT=95   # viewer backstop for a stuck refresh (the worker's own 90s watchdog + margin)
 MSG_SECS=4           # how long a transient footer message lingers before reverting to the hint
 HELP_SECS=6          # how long the '?' cheatsheet shows
 set_hint() {   # standing footer hint, reflecting both modes
@@ -209,15 +209,22 @@ while :; do
       # No content change. Tick the relative age, reconcile in-flight refresh
       # state, and reprint ONLY the footer line when something changed. No glow.
       agebucket $(( EPOCHSECONDS - gen_epoch ))
-      if [ "$refreshing" = 1 ]; then
-        # An UNCHANGED refresh writes no brief, so watch the done-stamp to learn
-        # the attempt finished; the timeout is a backstop if the worker died.
-        dm=$(stat -f %m "$donef" 2>/dev/null || echo 0)
-        if [ "$dm" != "$refresh_done0" ]; then
-          refreshing=0; rtail=' · ✓ no change'; rtail_until=$(( EPOCHSECONDS + MSG_SECS ))
-        elif [ "$(( EPOCHSECONDS - refresh_start ))" -gt "$REFRESH_TIMEOUT" ]; then
-          refreshing=0; rtail=' · ⚠ timed out'; rtail_until=$(( EPOCHSECONDS + MSG_SECS ))
-        fi
+      # Done-stamp watcher: the worker writes an OUTCOME word there at the end of
+      # every attempt — ours (r/interval) or the auto end-of-turn one — so a
+      # failure surfaces instead of masquerading as "no change". 'updated' means
+      # the brief changed and the redraw above already showed it; 'no change' is
+      # only worth announcing when WE asked for the refresh.
+      dm=$(stat -f %m "$donef" 2>/dev/null || echo 0)
+      if [ "$dm" != "$done_mt" ]; then
+        done_mt=$dm; was_ours=$refreshing; refreshing=0
+        case "$(cat "$donef" 2>/dev/null)" in
+          timeout)   rtail=' · ⚠ summary timed out'; rtail_until=$(( EPOCHSECONDS + MSG_SECS )) ;;
+          error)     rtail=' · ⚠ summary failed';    rtail_until=$(( EPOCHSECONDS + MSG_SECS )) ;;
+          unchanged) [ "$was_ours" = 1 ] && { rtail=' · ✓ no change'; rtail_until=$(( EPOCHSECONDS + MSG_SECS )); } ;;
+          *)         : ;;   # updated/unknown -> the content redraw speaks for itself
+        esac
+      elif [ "$refreshing" = 1 ] && [ "$(( EPOCHSECONDS - refresh_start ))" -gt "$REFRESH_TIMEOUT" ]; then
+        refreshing=0; rtail=' · ⚠ no response'; rtail_until=$(( EPOCHSECONDS + MSG_SECS ))   # worker never reported back
       elif [ "$rtail_until" -gt 0 ] && [ "$EPOCHSECONDS" -ge "$rtail_until" ]; then
         rtail="$HINT"; rtail_until=0                 # transient message expired -> back to hint
       fi

@@ -22,7 +22,7 @@ sumcwd="$state_dir/.sumcwd"   # neutral, CLAUDE.md-free dir => stable cache key
 mkdir -p "$state_dir" "$sumcwd"
 out="$state_dir/$sid.task"
 brief_out="$state_dir/$sid.brief.md"
-done_stamp="$state_dir/$sid.brief.done"   # bumped at the end of EVERY attempt so a live dock can clear its "refreshing…" indicator, even on UNCHANGED
+done_stamp="$state_dir/$sid.brief.done"   # outcome word written here at the end of EVERY attempt (updated/unchanged/timeout/error); the dock watches it
 
 # Previous living brief, fed back so the model UPDATES it instead of starting over.
 prevbrief=""
@@ -97,6 +97,7 @@ res=$( cd "$sumcwd" 2>/dev/null && CLAUDE_TASK_SUMMARY=1 \
         --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
         --disallowedTools "$NOTOOLS" \
         </dev/null 2>/dev/null )
+rc=$?   # 0 ok · 124/142 = watchdog timeout · other non-zero = comms/CLI failure
 
 # Split the response into the 2-line label and the brief (after the marker).
 case "$res" in
@@ -114,11 +115,21 @@ now=$(printf '%s\n' "$label_part"  | sed -n 's/^[[:space:]]*now:[[:space:]]*//p'
 # Update the living brief unless the model said UNCHANGED or returned nothing.
 brieftext=$(printf '%s\n' "$brief_part" | awk 'NF{seen=1} seen')   # strip leading blank lines
 trimmed=$(printf '%s' "$brieftext" | tr -d '[:space:]')
+wrote_brief=0
 case "$trimmed" in
   ''|UNCHANGED) : ;;                                                    # keep the previous brief
-  *) printf '%s\n' "$brieftext" > "$brief_out.tmp" && mv "$brief_out.tmp" "$brief_out" ;;
+  *) printf '%s\n' "$brieftext" > "$brief_out.tmp" && mv "$brief_out.tmp" "$brief_out"; wrote_brief=1 ;;
 esac
-: > "$done_stamp"   # tell watchers (the /brief dock) this refresh attempt finished — even if UNCHANGED
+
+# Record the attempt's OUTCOME (not just an mtime bump) so the dock can show it
+# and a failure can't masquerade as "no change". Empty result => the call failed;
+# split watchdog timeout from a comms/CLI error by exit code. Written atomically.
+if [ -z "$(printf '%s' "$res" | tr -d '[:space:]')" ]; then
+  case "$rc" in 124|142) outcome=timeout ;; *) outcome=error ;; esac
+elif [ "$wrote_brief" = 1 ]; then outcome=updated
+else                              outcome=unchanged
+fi
+printf '%s\n' "$outcome" > "$done_stamp.tmp" && mv "$done_stamp.tmp" "$done_stamp"
 
 [ -z "$goal" ] && [ -z "$now" ] && exit 0
 {
