@@ -36,6 +36,20 @@ trap 'rmdir "$lock" 2>/dev/null' EXIT
 out="$state_dir/$sid.task"
 brief_out="$state_dir/$sid.brief.md"
 done_stamp="$state_dir/$sid.brief.done"   # outcome word written here at the end of EVERY attempt (updated/unchanged/timeout/error); the dock watches it
+failf="$state_dir/$sid.brief.fail"        # "<consecutive-failures> <last-fail-epoch>", for backoff
+
+# Backoff: after repeated summariser failures (e.g. the gateway is down), stop
+# hammering it (and paying) every turn — retry at most once per COOLDOWN. Still
+# write outcome=error so the dock shows it's failing (no model call made).
+MAXFAIL=3; COOLDOWN=600
+if [ -f "$failf" ]; then
+  read -r fc ft _ < "$failf" 2>/dev/null
+  case "$fc" in ''|*[!0-9]*) fc=0 ;; esac; case "$ft" in ''|*[!0-9]*) ft=0 ;; esac
+  if [ "$fc" -ge "$MAXFAIL" ] && [ "$(( $(date +%s) - ft ))" -lt "$COOLDOWN" ]; then
+    printf 'error\n' > "$done_stamp.tmp" && mv "$done_stamp.tmp" "$done_stamp"
+    exit 0
+  fi
+fi
 
 # Previous living brief, fed back so the model UPDATES it instead of starting over.
 prevbrief=""
@@ -129,11 +143,18 @@ if [ -n "$BRIEF_SUMMARIZER" ]; then
 fi
 # Prompts go via env ($BRIEF_SYS/$BRIEF_USR); CLAUDE_TASK_SUMMARY guards recursion
 # if the summariser calls claude. Bound it with a perl watchdog (perl is a dep +
-# macOS built-in; the alarm survives exec, SIGALRM kills a hung call).
-res=$( BRIEF_SYS="$sys" BRIEF_USR="$usr" CLAUDE_TASK_SUMMARY=1 \
-        perl -e 'alarm shift @ARGV; exec @ARGV' "${BRIEF_SUMMARY_TIMEOUT:-90}" "$summariser" \
-        2>/dev/null )
-rc=$?   # 0 ok · 124/142 = watchdog timeout · other non-zero = summariser failure
+# macOS built-in; the alarm survives exec, SIGALRM kills a hung call). Retry ONCE
+# on a fast failure (transient 5xx/network), but NOT on a watchdog timeout.
+res=""; rc=0
+for attempt in 1 2; do
+  res=$( BRIEF_SYS="$sys" BRIEF_USR="$usr" CLAUDE_TASK_SUMMARY=1 \
+          perl -e 'alarm shift @ARGV; exec @ARGV' "${BRIEF_SUMMARY_TIMEOUT:-90}" "$summariser" \
+          2>/dev/null )
+  rc=$?   # 0 ok · 124/142 = watchdog timeout · other non-zero = summariser failure
+  [ -n "$(printf '%s' "$res" | tr -d '[:space:]')" ] && break   # got a result
+  case "$rc" in 124|142) break ;; esac                          # timed out -> a retry would just wait again
+  [ "$attempt" = 1 ] && perl -e 'select(undef,undef,undef,1)'   # ~1s pause (perl, already a dep), then the single retry
+done
 
 # Clean up the summariser's byproduct ASAP, whichever summariser ran: the default
 # (claude -p) leaves an inner-claude transcript per call in the neutral sumcwd
@@ -174,9 +195,22 @@ else                              outcome=unchanged
 fi
 printf '%s\n' "$outcome" > "$done_stamp.tmp" && mv "$done_stamp.tmp" "$done_stamp"
 
-[ -z "$goal" ] && [ -z "$now" ] && exit 0
-{
-  printf '▸ goal: %s\n' "$goal"
-  [ -n "$prev_line" ] && printf '%s\n' "$prev_line"
-  printf '▸ now:  %s\n' "$now"
-} > "$out.tmp" && mv "$out.tmp" "$out"
+# Track consecutive failures for the backoff above (reset on any success).
+case "$outcome" in
+  timeout|error) fc=0; [ -f "$failf" ] && { read -r fc _ < "$failf" 2>/dev/null; case "$fc" in ''|*[!0-9]*) fc=0 ;; esac; }
+                 printf '%s %s\n' "$((fc + 1))" "$(date +%s)" > "$failf" ;;
+  *)             rm -f "$failf" ;;
+esac
+
+# Update the status label — but on a FAILED call keep the last-good one rather
+# than clobbering goal/now with the prompt-echo fallbacks.
+case "$outcome" in
+  timeout|error) : ;;
+  *)
+    [ -z "$goal" ] && [ -z "$now" ] && exit 0
+    {
+      printf '▸ goal: %s\n' "$goal"
+      [ -n "$prev_line" ] && printf '%s\n' "$prev_line"
+      printf '▸ now:  %s\n' "$now"
+    } > "$out.tmp" && mv "$out.tmp" "$out" ;;
+esac
