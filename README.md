@@ -15,7 +15,12 @@ iTerm2 — so you can tab between many concurrent sessions and instantly re-orie
   `bin/brief-summarize.sh` (default Haiku `claude -p`); point `$BRIEF_SUMMARIZER`
   at your own script **under `~/.claude/`** (e.g. `~/.claude/bin/`) to use another
   model. It's executed, so it's only honoured from that trusted dir and must be a
-  user-owned, non-world-writable executable (contract documented in that file).
+  user-owned, non-world-writable executable (contract documented in that file). A
+  ready-made alternative, **`bin/brief-summarize-api.sh`**, calls the gateway's
+  Anthropic API directly (`<ANTHROPIC_BASE_URL>/v1/messages`, Bearer
+  `ANTHROPIC_AUTH_TOKEN`, model `ANTHROPIC_DEFAULT_HAIKU_MODEL`) — skips the CLI's
+  ~30k-token prefix, ~5× cheaper. Opt in: `export
+  BRIEF_SUMMARIZER=~/.claude/bin/brief-summarize-api.sh`.
 - A **`UserPromptSubmit`** hook maps pane/cwd → session id so `/brief` resolves
   which session it's in.
 - The viewer renders the brief with `glow` + a perl post-processor (gutter, indent
