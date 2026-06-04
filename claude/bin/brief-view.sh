@@ -100,6 +100,16 @@ do_refresh() {
   return 0
 }
 
+# Kick off a refresh and arm the in-flight state: snapshot the done-stamp (so an
+# UNCHANGED finish, which writes no brief, is still detectable), spawn the worker,
+# mark $refreshing. Returns non-zero if nothing started (no transcript). The
+# caller sets the $rtail indicator. Used by both the 'r' key and interval refresh.
+begin_refresh() {
+  refresh_done0=$(stat -f %m "$donef" 2>/dev/null || echo 0)
+  do_refresh || return 1
+  refreshing=1; refresh_start=$EPOCHSECONDS
+}
+
 # Reprint ONLY the footer line in place (no glow, no full redraw). Safe to call
 # any time after the first render has set $footer_row/$gen_epoch.
 repaint_footer() {
@@ -147,11 +157,22 @@ for i in "${!LADDER[@]}"; do
 done
 intv_int=${LADDER[intv_idx]}; intv_label=$(fmt_int "$intv_int")
 refreshing=0; refresh_start=0; refresh_done0=0; rtail_until=0
+REFRESH_TIMEOUT=95   # viewer backstop for a stuck refresh (the worker's own `timeout 90` + margin)
+MSG_SECS=4           # how long a transient footer message lingers before reverting to the hint
+HELP_SECS=6          # how long the '?' cheatsheet shows
 set_hint() {   # standing footer hint, reflecting both modes
   local as='auto off' is='interval off'
   [ "$auto" = 1 ] && as='auto on'
   [ "$intv" = 1 ] && is="interval ${intv_label}"
   HINT=" · ${as} · ${is} · ?"
+}
+# Move the interval one rung along $LADDER ($1 = +1 / -1), clamped, and show it.
+step_interval() {
+  local n=$(( intv_idx + $1 ))
+  [ "$n" -ge 0 ] && [ "$n" -lt "${#LADDER[@]}" ] && intv_idx=$n
+  intv_int=${LADDER[intv_idx]}; intv_label=$(fmt_int "$intv_int"); set_hint
+  rtail=" · interval ${intv_label}"; [ "$intv" = 0 ] && rtail="${rtail} (off)"
+  rtail_until=$(( EPOCHSECONDS + MSG_SECS )); repaint_footer
 }
 set_hint; rtail="$HINT"; last_rtail=""
 while :; do
@@ -193,16 +214,15 @@ while :; do
         # the attempt finished; the timeout is a backstop if the worker died.
         dm=$(stat -f %m "$donef" 2>/dev/null || echo 0)
         if [ "$dm" != "$refresh_done0" ]; then
-          refreshing=0; rtail=' · ✓ no change'; rtail_until=$(( EPOCHSECONDS + 4 ))
-        elif [ "$(( EPOCHSECONDS - refresh_start ))" -gt 95 ]; then
-          refreshing=0; rtail=' · ⚠ timed out'; rtail_until=$(( EPOCHSECONDS + 4 ))
+          refreshing=0; rtail=' · ✓ no change'; rtail_until=$(( EPOCHSECONDS + MSG_SECS ))
+        elif [ "$(( EPOCHSECONDS - refresh_start ))" -gt "$REFRESH_TIMEOUT" ]; then
+          refreshing=0; rtail=' · ⚠ timed out'; rtail_until=$(( EPOCHSECONDS + MSG_SECS ))
         fi
       elif [ "$rtail_until" -gt 0 ] && [ "$EPOCHSECONDS" -ge "$rtail_until" ]; then
         rtail="$HINT"; rtail_until=0                 # transient message expired -> back to hint
       fi
       if [ "$AGE" != "$last_age" ] || [ "$rtail" != "$last_rtail" ]; then
-        tput cup "$footer_row" 0 2>/dev/null; footer; tput el 2>/dev/null
-        last_age="$AGE"; last_rtail="$rtail"
+        repaint_footer; last_age="$AGE"   # repaint_footer also sets last_rtail
       fi
     fi
   elif [ "$redraw" = 1 ]; then
@@ -215,9 +235,8 @@ while :; do
   # so we re-check at most once per interval.
   if [ "$intv" = 1 ] && [ "$refreshing" = 0 ] && [ "$(( EPOCHSECONDS - last_intv ))" -ge "$intv_int" ]; then
     last_intv=$EPOCHSECONDS
-    if [ -n "$tp" ] && [[ "$tp" -nt "$donef" ]]; then
-      refresh_done0=$(stat -f %m "$donef" 2>/dev/null || echo 0)
-      if do_refresh; then refreshing=1; refresh_start=$EPOCHSECONDS; rtail=' · ⟳ interval…'; repaint_footer; fi
+    if [ -n "$tp" ] && [[ "$tp" -nt "$donef" ]] && begin_refresh; then
+      rtail=' · ⟳ interval…'; repaint_footer
     fi
   fi
   # Idle pacing AND input in one wait: up to 0.5s for a keypress (the poll
@@ -227,12 +246,8 @@ while :; do
   case "$key" in
     r|R)
       if [ "$refreshing" = 0 ]; then
-        refresh_done0=$(stat -f %m "$donef" 2>/dev/null || echo 0)
-        if do_refresh; then
-          refreshing=1; refresh_start=$EPOCHSECONDS; rtail=' · ⟳ refreshing…'
-        else
-          rtail=' · ⚠ no transcript'; rtail_until=$(( EPOCHSECONDS + 4 ))
-        fi
+        if begin_refresh; then rtail=' · ⟳ refreshing…'
+        else rtail=' · ⚠ no transcript'; rtail_until=$(( EPOCHSECONDS + MSG_SECS )); fi
         repaint_footer   # paint the indicator now, don't wait for the next age tick
       fi
       ;;
@@ -242,7 +257,7 @@ while :; do
       else
         auto=1; rm -f "$noautof"; rtail=' · auto on — refresh each turn'
       fi
-      set_hint; rtail_until=$(( EPOCHSECONDS + 4 )); repaint_footer
+      set_hint; rtail_until=$(( EPOCHSECONDS + MSG_SECS )); repaint_footer
       ;;
     i|I)       # toggle interval = refresh periodically during a long turn
       if [ "$intv" = 1 ]; then
@@ -250,22 +265,12 @@ while :; do
       else
         intv=1; last_intv=0; rtail=" · interval ${intv_label}"   # last_intv=0 => evaluate next tick
       fi
-      set_hint; rtail_until=$(( EPOCHSECONDS + 4 )); repaint_footer
+      set_hint; rtail_until=$(( EPOCHSECONDS + MSG_SECS )); repaint_footer
       ;;
-    '+'|'=')   # raise the interval period ('=' is the unshifted '+' key)
-      [ "$intv_idx" -lt $(( ${#LADDER[@]} - 1 )) ] && intv_idx=$(( intv_idx + 1 ))
-      intv_int=${LADDER[intv_idx]}; intv_label=$(fmt_int "$intv_int"); set_hint
-      rtail=" · interval ${intv_label}"; [ "$intv" = 0 ] && rtail="${rtail} (off)"
-      rtail_until=$(( EPOCHSECONDS + 4 )); repaint_footer
-      ;;
-    '-'|'_')   # lower the interval period
-      [ "$intv_idx" -gt 0 ] && intv_idx=$(( intv_idx - 1 ))
-      intv_int=${LADDER[intv_idx]}; intv_label=$(fmt_int "$intv_int"); set_hint
-      rtail=" · interval ${intv_label}"; [ "$intv" = 0 ] && rtail="${rtail} (off)"
-      rtail_until=$(( EPOCHSECONDS + 4 )); repaint_footer
-      ;;
+    '+'|'=') step_interval 1 ;;    # raise the interval period ('=' is the unshifted '+' key)
+    '-'|'_') step_interval -1 ;;   # lower the interval period
     '?')       # transient key cheatsheet
-      rtail=' · r refresh · a auto · i interval · ± period · q quit'; rtail_until=$(( EPOCHSECONDS + 6 )); repaint_footer
+      rtail=' · r refresh · a auto · i interval · ± period · q quit'; rtail_until=$(( EPOCHSECONDS + HELP_SECS )); repaint_footer
       ;;
     q|Q) exit 0 ;;
   esac
