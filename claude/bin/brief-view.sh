@@ -13,6 +13,7 @@ brief="$state_dir/$sid.brief.md"
 pidf="$state_dir/$sid.brief.pid"
 marker="$state_dir/$sid.brief.seen"   # mtime bumped after each render -> fork-free change detect
 skipf="$state_dir/$sid.skipped"        # trivial-turn skip counter (written by the Stop hook)
+donef="$state_dir/$sid.brief.done"     # bumped by the worker when a refresh attempt finishes (even if UNCHANGED)
 echo $$ > "$pidf"
 
 cleanup() { tput rmcup 2>/dev/null; tput cnorm 2>/dev/null; rm -f "$pidf" "$marker"; exit 0; }
@@ -88,18 +89,33 @@ agebucket() {
   fi
 }
 
-# Print the footer line (no leading newline) from $AGE, $sk, $more.
+# On-demand refresh: spawn the same Haiku summarizer the Stop hook uses,
+# detached, for THIS session. Resolves the transcript path the way brief-open.sh
+# does. Returns non-zero (doing nothing) if no transcript exists yet.
+do_refresh() {
+  local tp
+  tp=$(ls -t "$HOME"/.claude/projects/*/"$sid".jsonl 2>/dev/null | head -1)
+  [ -n "$tp" ] || return 1
+  nohup "$HOME/.claude/hooks/task-summary-worker.sh" "$sid" "$tp" >/dev/null 2>&1 &
+  return 0
+}
+
+# Print the footer line (no leading newline) from $AGE, $sk, $more, $rtail.
 footer() {
   if [ "$sk" -gt 0 ]; then
     local u=updates; [ "$sk" -eq 1 ] && u=update
-    printf '\033[2m— generated %s · %s %s skipped%s\033[0m' "$AGE" "$sk" "$u" "$more"
+    printf '\033[2m— generated %s · %s %s skipped%s%s\033[0m' "$AGE" "$sk" "$u" "$more" "$rtail"
   else
-    printf '\033[2m— generated %s%s\033[0m' "$AGE" "$more"
+    printf '\033[2m— generated %s%s%s\033[0m' "$AGE" "$more" "$rtail"
   fi
 }
 
 printf '\033]0;brief %s\007' "${sid:0:8}"    # name the pane
 cols=""; rows=""
+# Manual-refresh state. $rtail is the dim segment appended to the footer: a
+# standing "r → refresh" hint, or a transient "⟳ refreshing…" / "✓ no change".
+HINT=' · r → refresh'; rtail="$HINT"; last_rtail=""
+refreshing=0; refresh_start=0; refresh_done0=0; rtail_until=0
 while :; do
   redraw=0
   # Poll the LIVE pane size every tick. stty does a direct TIOCGWINSZ ioctl, so
@@ -127,20 +143,53 @@ while :; do
       gen_epoch=$(stat -f %m "$brief" 2>/dev/null); [ -n "$gen_epoch" ] || gen_epoch=$EPOCHSECONDS
       footer_row=$(( (total < maxrows ? total : maxrows) + 1 ))   # content rows + the blank line
       agebucket $(( EPOCHSECONDS - gen_epoch )); last_age="$AGE"
-      printf '\n'; footer
+      refreshing=0; rtail="$HINT"; rtail_until=0   # fresh content shown => any manual refresh is done
+      printf '\n'; footer; last_rtail="$rtail"
       : > "$marker"                            # mark "rendered as of now" (builtin, no fork)
     elif [ -n "$gen_epoch" ]; then
-      # No content change — just tick the relative age if its bucket rolled over,
-      # reprinting ONLY the footer line (cursor-positioned). No glow, no forks.
+      # No content change. Tick the relative age, reconcile manual-refresh state,
+      # and reprint ONLY the footer line when something there changed. No glow.
       agebucket $(( EPOCHSECONDS - gen_epoch ))
-      if [ "$AGE" != "$last_age" ]; then
+      if [ "$refreshing" = 1 ]; then
+        # An UNCHANGED refresh writes no brief, so watch the done-stamp to learn
+        # the attempt finished; the timeout is a backstop if the worker died.
+        dm=$(stat -f %m "$donef" 2>/dev/null || echo 0)
+        if [ "$dm" != "$refresh_done0" ]; then
+          refreshing=0; rtail=' · ✓ no change'; rtail_until=$(( EPOCHSECONDS + 4 ))
+        elif [ "$(( EPOCHSECONDS - refresh_start ))" -gt 95 ]; then
+          refreshing=0; rtail=' · ⚠ timed out'; rtail_until=$(( EPOCHSECONDS + 4 ))
+        fi
+      elif [ "$rtail_until" -gt 0 ] && [ "$EPOCHSECONDS" -ge "$rtail_until" ]; then
+        rtail="$HINT"; rtail_until=0                 # transient message expired -> back to hint
+      fi
+      if [ "$AGE" != "$last_age" ] || [ "$rtail" != "$last_rtail" ]; then
         tput cup "$footer_row" 0 2>/dev/null; footer; tput el 2>/dev/null
-        last_age="$AGE"
+        last_age="$AGE"; last_rtail="$rtail"
       fi
     fi
   elif [ "$redraw" = 1 ]; then
     { tput clear 2>/dev/null || printf '\033[H\033[2J'; }
     printf 'No brief yet for %s.\nIt appears after the next completed turn.' "${sid:0:8}"
   fi
-  sleep 0.5                                    # the one fork per idle tick
+  # Idle pacing AND input in one wait: up to 0.5s for a keypress (the poll
+  # interval) — 'r' forces a refresh now, 'q' closes the dock. Fractional -t
+  # needs bash 4+, already required here ($EPOCHSECONDS is bash 5+).
+  read -rsn1 -t 0.5 key || key=""
+  case "$key" in
+    r|R)
+      if [ "$refreshing" = 0 ]; then
+        refresh_done0=$(stat -f %m "$donef" 2>/dev/null || echo 0)
+        if do_refresh; then
+          refreshing=1; refresh_start=$EPOCHSECONDS; rtail=' · ⟳ refreshing…'
+        else
+          rtail=' · ⚠ no transcript'; rtail_until=$(( EPOCHSECONDS + 4 ))
+        fi
+        # paint the indicator now, don't wait for the next age tick
+        if [ -n "$gen_epoch" ]; then
+          tput cup "$footer_row" 0 2>/dev/null; footer; tput el 2>/dev/null; last_rtail="$rtail"
+        fi
+      fi
+      ;;
+    q|Q) exit 0 ;;
+  esac
 done

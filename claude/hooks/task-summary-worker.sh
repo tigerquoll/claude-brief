@@ -22,6 +22,7 @@ sumcwd="$state_dir/.sumcwd"   # neutral, CLAUDE.md-free dir => stable cache key
 mkdir -p "$state_dir" "$sumcwd"
 out="$state_dir/$sid.task"
 brief_out="$state_dir/$sid.brief.md"
+done_stamp="$state_dir/$sid.brief.done"   # bumped at the end of EVERY attempt so a live dock can clear its "refreshing…" indicator, even on UNCHANGED
 
 # Previous living brief, fed back so the model UPDATES it instead of starting over.
 prevbrief=""
@@ -114,6 +115,7 @@ case "$trimmed" in
   ''|UNCHANGED) : ;;                                                    # keep the previous brief
   *) printf '%s\n' "$brieftext" > "$brief_out.tmp" && mv "$brief_out.tmp" "$brief_out" ;;
 esac
+: > "$done_stamp"   # tell watchers (the /brief dock) this refresh attempt finished — even if UNCHANGED
 
 [ -z "$goal" ] && [ -z "$now" ] && exit 0
 {

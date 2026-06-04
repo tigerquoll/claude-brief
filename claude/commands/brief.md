@@ -5,7 +5,9 @@ allowed-tools: Bash(~/.claude/bin/brief-open.sh:*)
 ---
 This session's running brief (state · what's been tried · gotchas · decisions ·
 next) is shown in a docked iTerm2 pane — a side-by-side split, opened or
-re-focused just now. It refreshes itself after every completed turn.
+re-focused just now. It refreshes itself after every completed turn; during a
+long turn, click the dock pane and press `r` to refresh it on demand (`q` closes
+the dock). `/brief refresh` does the same from here but re-splits the pane.
 
 !`~/.claude/bin/brief-open.sh $ARGUMENTS`
 
