@@ -194,19 +194,22 @@ set_hint; rtail="$HINT"; last_rtail=""
 # read, no kernel trap, no fork) — `date` would fork+exec every 0.5s tick. Don't
 # "simplify" it to `date`.
 while :; do
-  redraw=0
+  redraw=0; rwhy=
   # Poll the LIVE pane size every tick. stty does a direct TIOCGWINSZ ioctl, so
   # it sees resizes immediately and ignores any stale COLUMNS env that makes
   # tput lie. tput is the fallback if stdin isn't the tty. Reflows on W or H change.
   sz=$(stty size 2>/dev/null); r=${sz%% *}; c=${sz##* }
   [ "$c" -gt 0 ] 2>/dev/null || c=$(tput cols 2>/dev/null || echo 80)
   [ "$r" -gt 0 ] 2>/dev/null || r=$(tput lines 2>/dev/null || echo 40)
-  if [ "$c" != "$cols" ] || [ "$r" != "$rows" ]; then cols="$c"; rows="$r"; redraw=1; fi
+  if [ "$c" != "$cols" ] || [ "$r" != "$rows" ]; then cols="$c"; rows="$r"; redraw=1; rwhy="size(${c}x${r})"; fi
   if [ -f "$brief" ]; then
-    [[ "$brief" -nt "$marker" ]] && redraw=1   # brief CONTENT changed -> full re-render (fork-free -nt)
+    [[ "$brief" -nt "$marker" ]] && { redraw=1; rwhy="${rwhy:+$rwhy+}brief"; }   # brief CONTENT changed -> full re-render (fork-free -nt)
     # NOTE: a .skipped change is handled as a footer-only reprint below — it must
     # NOT force a full md re-render (that caused a spurious second redraw per turn).
     if [ "$redraw" = 1 ]; then
+      # Diagnostics: when ~/.claude/state/.brief-debug exists, log WHY each full
+      # md re-render happened (a few lines/turn). `rm` the flag to disable.
+      [ -e "$state_dir/.brief-debug" ] && printf '%s redraw %s\n' "$EPOCHSECONDS" "${rwhy:-initial}" >> "$state_dir/$sid.brief.debug"
       # Full wipe, then render CLIPPED to the pane height: keeps the TOP (title/
       # state) visible and stops content scrolling off the top of the alt screen
       # on a short/narrow pane. clear() adds no scrollback on the alt screen.
