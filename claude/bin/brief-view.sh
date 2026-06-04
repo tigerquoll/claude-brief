@@ -108,7 +108,7 @@ do_refresh() {
 # (no transcript). Used by both the 'r' key and interval refresh.
 begin_refresh() {
   do_refresh || return 1
-  refreshing=1; refresh_start=$EPOCHSECONDS
+  refreshing=1; refresh_start=$EPOCHSECONDS; spin=0; spinframe=${SPIN[0]}; rtail=""
 }
 
 # Reprint ONLY the footer line in place (no glow, no full redraw). Safe to call
@@ -116,16 +116,25 @@ begin_refresh() {
 repaint_footer() {
   [ -n "$gen_epoch" ] || return 0
   tput cup "$footer_row" 0 2>/dev/null; footer; tput el 2>/dev/null
-  last_rtail="$rtail"
+  last_rtail="$rtail"; last_spin="$spinframe"
 }
 
-# Print the footer line (no leading newline) from $AGE, $sk, $more, $rtail.
+# Print the footer line. Normally a dim "— generated <age> …" line; while a
+# refresh is in flight ($spinframe set) it LEADS with the animated spinner in
+# bold amber (undimmed) so it's obvious, with the dim status trailing. Builds the
+# body with printf -v (no subshell) since this can repaint every tick.
 footer() {
+  local body u=updates
+  [ "$sk" -eq 1 ] && u=update
   if [ "$sk" -gt 0 ]; then
-    local u=updates; [ "$sk" -eq 1 ] && u=update
-    printf '\033[2m— generated %s · %s %s skipped%s%s\033[0m' "$AGE" "$sk" "$u" "$more" "$rtail"
+    printf -v body 'generated %s · %s %s skipped%s%s' "$AGE" "$sk" "$u" "$more" "$rtail"
   else
-    printf '\033[2m— generated %s%s%s\033[0m' "$AGE" "$more" "$rtail"
+    printf -v body 'generated %s%s%s' "$AGE" "$more" "$rtail"
+  fi
+  if [ -n "$spinframe" ]; then
+    printf '\033[1;33m%s updating…\033[0m\033[2m · %s\033[0m' "$spinframe" "$body"
+  else
+    printf '\033[2m— %s\033[0m' "$body"
   fi
 }
 
@@ -139,8 +148,9 @@ tp=$(ls -t "$HOME"/.claude/projects/*/"$sid".jsonl 2>/dev/null | head -1)   # tr
 #   interval — refresh PERIODICALLY DURING a long turn (key 'i', default OFF; +/-
 #              set the period). Fires only when the transcript advanced since the
 #              last attempt, so an idle session never spends. In-memory.
-# $rtail is the dim footer segment: the standing hint (set_hint) or a transient
-# status ("⟳ refreshing…" / "✓ no change").
+# $rtail is the dim footer tail: the standing hint (set_hint) or a transient
+# status ("✓ no change" / "⚠ summary failed"). An in-flight refresh instead shows
+# the animated $spinframe LEADING the line (bold amber) — see footer().
 noautof="$state_dir/$sid.brief.noauto"
 auto=1; [ -f "$noautof" ] && auto=0      # end-of-turn refresh; default ON, OFF persisted by the flag
 intv=0; last_intv=0                       # periodic during-turn refresh; default OFF
@@ -158,6 +168,7 @@ for i in "${!LADDER[@]}"; do
 done
 intv_int=${LADDER[intv_idx]}; intv_label=$(fmt_int "$intv_int")
 refreshing=0; refresh_start=0; rtail_until=0
+SPIN=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏); spin=0; spinframe=""; last_spin=""   # in-flight spinner: leads the footer, animated while refreshing
 done_mt=$(stat -f %m "$donef" 2>/dev/null || echo 0)   # last-seen done-stamp mtime (outcome watcher)
 REFRESH_TIMEOUT=95   # viewer backstop for a stuck refresh (the worker's own 90s watchdog + margin)
 MSG_SECS=4           # how long a transient footer message lingers before reverting to the hint
@@ -208,13 +219,14 @@ while :; do
       gen_epoch=$(stat -f %m "$brief" 2>/dev/null); [ -n "$gen_epoch" ] || gen_epoch=$EPOCHSECONDS
       footer_row=$(( (total < maxrows ? total : maxrows) + 1 ))   # content rows + the blank line
       agebucket $(( EPOCHSECONDS - gen_epoch )); last_age="$AGE"
-      refreshing=0; rtail="$HINT"; rtail_until=0   # fresh content shown => any in-flight refresh is done
-      printf '\n'; footer; last_rtail="$rtail"
+      refreshing=0; spinframe=""; rtail="$HINT"; rtail_until=0   # fresh content shown => any in-flight refresh is done
+      printf '\n'; footer; last_rtail="$rtail"; last_spin="$spinframe"
       : > "$marker"                            # mark "rendered as of now" (builtin, no fork)
     elif [ -n "$gen_epoch" ]; then
       # No content change. Tick the relative age, reconcile in-flight refresh
       # state, and reprint ONLY the footer line when something changed. No glow.
       agebucket $(( EPOCHSECONDS - gen_epoch ))
+      [ "$refreshing" = 1 ] && { spin=$(( (spin + 1) % ${#SPIN[@]} )); spinframe=${SPIN[spin]}; }   # animate the in-flight spinner
       # Done-stamp watcher: the worker writes an OUTCOME word there at the end of
       # every attempt — ours (r/interval) or the auto end-of-turn one — so a
       # failure surfaces instead of masquerading as "no change". 'updated' means
@@ -222,7 +234,7 @@ while :; do
       # only worth announcing when WE asked for the refresh.
       dm=$(stat -f %m "$donef" 2>/dev/null || echo 0)
       if [ "$dm" != "$done_mt" ]; then
-        done_mt=$dm; was_ours=$refreshing; refreshing=0
+        done_mt=$dm; was_ours=$refreshing; refreshing=0; spinframe=""
         case "$(cat "$donef" 2>/dev/null)" in
           timeout)   rtail=' · ⚠ summary timed out'; rtail_until=$(( EPOCHSECONDS + MSG_SECS )) ;;
           error)     rtail=' · ⚠ summary failed';    rtail_until=$(( EPOCHSECONDS + MSG_SECS )) ;;
@@ -230,12 +242,12 @@ while :; do
           *)         : ;;   # updated/unknown -> the content redraw speaks for itself
         esac
       elif [ "$refreshing" = 1 ] && [ "$(( EPOCHSECONDS - refresh_start ))" -gt "$REFRESH_TIMEOUT" ]; then
-        refreshing=0; rtail=' · ⚠ no response'; rtail_until=$(( EPOCHSECONDS + MSG_SECS ))   # worker never reported back
+        refreshing=0; spinframe=""; rtail=' · ⚠ no response'; rtail_until=$(( EPOCHSECONDS + MSG_SECS ))   # worker never reported back
       elif [ "$rtail_until" -gt 0 ] && [ "$EPOCHSECONDS" -ge "$rtail_until" ]; then
         rtail="$HINT"; rtail_until=0                 # transient message expired -> back to hint
       fi
-      if [ "$AGE" != "$last_age" ] || [ "$rtail" != "$last_rtail" ]; then
-        repaint_footer; last_age="$AGE"   # repaint_footer also sets last_rtail
+      if [ "$AGE" != "$last_age" ] || [ "$rtail" != "$last_rtail" ] || [ "$spinframe" != "$last_spin" ]; then
+        repaint_footer; last_age="$AGE"   # repaint_footer also sets last_rtail/last_spin
       fi
     fi
   elif [ "$redraw" = 1 ]; then
@@ -249,7 +261,7 @@ while :; do
   if [ "$intv" = 1 ] && [ "$refreshing" = 0 ] && [ "$(( EPOCHSECONDS - last_intv ))" -ge "$intv_int" ]; then
     last_intv=$EPOCHSECONDS
     if [ -n "$tp" ] && [[ "$tp" -nt "$donef" ]] && begin_refresh; then
-      rtail=' · ⟳ interval…'; repaint_footer
+      repaint_footer   # begin_refresh armed the leading spinner
     fi
   fi
   # Idle pacing AND input in one wait: up to 0.5s for a keypress (the poll
@@ -259,9 +271,8 @@ while :; do
   case "$key" in
     r|R)
       if [ "$refreshing" = 0 ]; then
-        if begin_refresh; then rtail=' · ⟳ refreshing…'
-        else rtail=' · ⚠ no transcript'; rtail_until=$(( EPOCHSECONDS + MSG_SECS )); fi
-        repaint_footer   # paint the indicator now, don't wait for the next age tick
+        begin_refresh || { rtail=' · ⚠ no transcript'; rtail_until=$(( EPOCHSECONDS + MSG_SECS )); }
+        repaint_footer   # show the spinner (or the error) now, don't wait for the next tick
       fi
       ;;
     a|A)       # toggle auto = refresh at the end of each turn (persisted via the noauto flag)
