@@ -17,10 +17,14 @@ iTerm2 — so you can tab between many concurrent sessions and instantly re-orie
   model. It's executed, so it's only honoured from that trusted dir and must be a
   user-owned, non-world-writable executable (contract documented in that file). A
   ready-made alternative, **`bin/brief-summarize-api.sh`**, calls the gateway's
-  Anthropic API directly (`<ANTHROPIC_BASE_URL>/v1/messages`, Bearer
-  `ANTHROPIC_AUTH_TOKEN`, model `ANTHROPIC_DEFAULT_HAIKU_MODEL`) — skips the CLI's
+  Anthropic API directly (`<base>/v1/messages`, Bearer token) — skips the CLI's
   ~30k-token prefix, ~5× cheaper. Opt in: `export
-  BRIEF_SUMMARIZER=~/.claude/bin/brief-summarize-api.sh`.
+  BRIEF_SUMMARIZER=~/.claude/bin/brief-summarize-api.sh`. Configure it
+  **independently of the main session** via `BRIEF_API_BASE` / `BRIEF_API_TOKEN`
+  / `BRIEF_API_MODEL` (these override the shared `ANTHROPIC_*`); or put them in
+  `~/.claude/brief-summarizer.env` (`chmod 600`, sourced if owned + not
+  world/group-writable) to keep the token out of settings.json and out of the
+  main Claude session's environment.
 - A **`UserPromptSubmit`** hook maps pane/cwd → session id so `/brief` resolves
   which session it's in.
 - The viewer renders the brief with `glow` + a perl post-processor (gutter, indent

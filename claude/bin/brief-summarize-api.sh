@@ -11,20 +11,31 @@
 # UNCHANGED). Empty output / non-zero exit ⇒ the worker records a failure. The
 # worker wraps this in a ${BRIEF_SUMMARY_TIMEOUT:-90}s watchdog.
 #
-# Reads from the environment (set them in Claude Code's settings.json "env"):
-#   ANTHROPIC_BASE_URL            gateway base URL (sends to <base>/v1/messages)
-#   ANTHROPIC_AUTH_TOKEN          bearer token (sent as: Authorization: Bearer …)
-#   ANTHROPIC_DEFAULT_HAIKU_MODEL model name registered at the gateway
-base=${ANTHROPIC_BASE_URL:-https://ai-gateway.cloudops.cloudera.com}
-model=${ANTHROPIC_DEFAULT_HAIKU_MODEL:-claude-haiku-4-5}
-[ -n "$ANTHROPIC_AUTH_TOKEN" ] || { echo "brief-summarize-api: ANTHROPIC_AUTH_TOKEN not set" >&2; exit 1; }
+# Config — lets the summariser use a DIFFERENT endpoint/token/model than, and
+# never affect, the MAIN Claude Code session. For each setting: a summariser-only
+# $BRIEF_API_* var wins; otherwise the shared $ANTHROPIC_* the main session uses:
+#   base : $BRIEF_API_BASE  | $ANTHROPIC_BASE_URL              -> <base>/v1/messages
+#   token: $BRIEF_API_TOKEN | $ANTHROPIC_AUTH_TOKEN            -> Authorization: Bearer …
+#   model: $BRIEF_API_MODEL | $ANTHROPIC_DEFAULT_HAIKU_MODEL
+# Any of these may instead live in ~/.claude/brief-summarizer.env (sourced if it's
+# yours and not group/other-writable) — handy to keep the token out of settings.json,
+# and out of the main session's environment entirely.
+cfg="$HOME/.claude/brief-summarizer.env"
+if [ -f "$cfg" ] && [ -O "$cfg" ]; then
+  cperm=$(stat -f %Lp "$cfg" 2>/dev/null || echo 777)
+  (( 8#$cperm & 0022 )) || . "$cfg"   # source only if not group/other-writable
+fi
+base=${BRIEF_API_BASE:-${ANTHROPIC_BASE_URL:-https://ai-gateway.cloudops.cloudera.com}}
+model=${BRIEF_API_MODEL:-${ANTHROPIC_DEFAULT_HAIKU_MODEL:-claude-haiku-4-5}}
+token=${BRIEF_API_TOKEN:-$ANTHROPIC_AUTH_TOKEN}
+[ -n "$token" ] || { echo "brief-summarize-api: no token — set BRIEF_API_TOKEN or ANTHROPIC_AUTH_TOKEN (or put it in ~/.claude/brief-summarizer.env)" >&2; exit 1; }
 
 # Build the request body with jq so the prompts are safely JSON-escaped.
 body=$(jq -n --arg m "$model" --arg s "$BRIEF_SYS" --arg u "$BRIEF_USR" \
   '{model:$m, max_tokens:2000, system:$s, messages:[{role:"user", content:$u}]}') || exit 1
 
 resp=$(curl -sS --max-time "${BRIEF_SUMMARY_TIMEOUT:-90}" \
-  -H "authorization: Bearer $ANTHROPIC_AUTH_TOKEN" \
+  -H "authorization: Bearer $token" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
   -d "$body" \
