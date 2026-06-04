@@ -76,6 +76,12 @@ if [ -f "$sizef" ]; then
   case "$sc" in ''|*[!0-9]*) ;; *) cols=$sc ;; esac
 fi
 avail=$(( rows - 2 )); [ "$avail" -lt 6 ] && avail=6
+# Pick an explicit composition directive from the budget (more reliable than
+# asking the model to interpret a line count — it scales BOTH ways).
+if   [ "$avail" -lt 16 ]; then budget_note="This is a SMALL pane (~${avail} display lines): output ONLY the '# <goal>' title, '## State', and '## Next / Open' — 1-2 terse bullets each; OMIT the other sections."
+elif [ "$avail" -lt 32 ]; then budget_note="This is a MEDIUM pane (~${avail} display lines): include all sections but stay compact — a few short bullets each (a single '—' when a section is empty)."
+else                           budget_note="This is a ROOMY pane (~${avail} display lines): include all sections with full, concrete detail; use the space."
+fi
 
 sys='You maintain the live state of a coding session. Output TWO parts.
 
@@ -86,16 +92,10 @@ Be concrete — name files, tools, or components. Prefer specifics over generic 
 
 Then a line containing ONLY: ===BRIEF===
 
-PART 2 — a living session brief in GitHub markdown that re-briefs a developer who just tabbed back in. UPDATE the previous brief (given below) with what changed this turn; do NOT regenerate from scratch. Preserve durable knowledge; drop resolved or stale items from State and Next. Be concrete: name files, errors, commands, line numbers. Keep it tight and terse; FIT the display budget given in the user message — shorten or drop the least-important bullets first so the whole brief fits the pane. Use EXACTLY these sections, in order, each always present (use a single "—" when a section is empty):
-# <one-line goal>
-## State
-## Tried
-## Gotchas
-## Decisions
-## Next / Open
+PART 2 — a living session brief in GitHub markdown that re-briefs a developer who just tabbed back in. UPDATE the previous brief (given below) with what changed this turn; do NOT regenerate from scratch. Preserve durable knowledge; drop resolved or stale items from State and Next. Be concrete: name files, errors, commands, line numbers. Start with a `# <one-line goal>` title, then these sections in this order: ## State, ## Tried, ## Gotchas, ## Decisions, ## Next / Open. FOLLOW THE DISPLAY-SIZE DIRECTIVE in the user message — it says exactly which sections to include and how much detail; fitting the pane takes priority over completeness.
 If nothing material changed since the previous brief, output ONLY the word UNCHANGED after the marker.'
 
-usr="Display budget: this brief renders in a terminal pane about ${rows} rows tall and ${cols} cols wide. Keep the WHOLE rendered brief within ~${avail} lines (count the blank line between sections and any wrapping of lines past ~${cols} chars). Be terser on a small pane — fewer, shorter bullets, drop the least-important first; use the extra room on a tall one.
+usr="Display-size directive (the dock pane is ${rows} rows x ${cols} cols): ${budget_note} Keep lines under ~${cols} chars (longer lines wrap and cost extra display rows). Don't exceed ~${avail} display lines.
 
 Session title hint: ${title:-none}
 
