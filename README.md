@@ -28,8 +28,10 @@ iterm2/DynamicProfiles/brief.json      (Default profile + 1.2x line spacing)
 ```
 
 ## Install / sync / restore
-- `./install.sh` — copy repo → `~/.claude` (+ the iTerm2 profile). Use to restore
-  or set up a new machine.
+- `./install.sh` — runs a **dependency check** (see Requirements), then copies
+  repo → `~/.claude` (+ the iTerm2 profile). Exits non-zero if a required dep is
+  missing. Use to restore or set up a new machine.
+- `./install.sh --check` — run only the dependency check; install nothing.
 - `./sync.sh` — copy live `~/.claude` → repo. Run before committing local tweaks.
 - **`~/.claude/settings.json` hook entries** (add by hand — settings.json is not
   committed, to avoid leaking config):
@@ -40,8 +42,10 @@ iterm2/DynamicProfiles/brief.json      (Default profile + 1.2x line spacing)
   ```
 
 ## Requirements
-macOS · iTerm2 3.6+ · bash 5 (`brew install bash`) · `glow` (`brew install glow`)
-· `jq` · `perl` · the `claude` CLI.
+macOS · iTerm2 3.6+ · bash ≥ 4 (`brew install bash`) · `jq` · `perl` (built-in;
+also the summarizer's 90s watchdog, so no coreutils needed) · the `claude` CLI ·
+`osascript` (built-in). Optional: `glow` (`brew install glow`, recommended) or
+`bat` for nicer rendering. `./install.sh --check` verifies all of these.
 
 Design notes, iTerm2/terminal gotchas, and the summary cost model are recorded in
 this project's Claude memory (`brief-dock-system`, `iterm2-36-scripting-gotchas`,

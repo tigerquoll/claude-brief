@@ -86,9 +86,12 @@ $prompt
 
 Produce PART 1, then the ===BRIEF=== marker line, then PART 2."
 
+# 90s watchdog via perl (already a dependency; macOS built-in) instead of GNU
+# `timeout` (coreutils, not on a stock macOS): the alarm survives exec, and
+# SIGALRM's default action kills the claude call if it hangs.
 res=$( cd "$sumcwd" 2>/dev/null && CLAUDE_TASK_SUMMARY=1 \
         MAX_THINKING_TOKENS=0 DISABLE_INTERLEAVED_THINKING=1 \
-        timeout 90 claude -p "$usr" \
+        perl -e 'alarm shift @ARGV; exec @ARGV' 90 claude -p "$usr" \
         --append-system-prompt "$sys" \
         --model "${ANTHROPIC_DEFAULT_HAIKU_MODEL:-claude-haiku-4-5}" \
         --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
