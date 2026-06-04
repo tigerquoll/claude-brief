@@ -120,10 +120,10 @@ repaint_footer() {
 }
 
 # Print the footer line. Normally a dim "— generated <age> …" line; while a
-# refresh is in flight ($spinframe set) it LEADS with the animated spinner in
-# amber (undimmed, non-bold) so it's obvious, and the age reads "previously
-# generated <age>" since the shown content is the prior gen. Builds the body with
-# printf -v (no subshell) since this can repaint every tick.
+# refresh is in flight ($spinframe set) it LEADS with an animated spinner (dim
+# grey, like the rest — the motion + leading position carry the signal), and the
+# age reads "previously generated <age>" since the shown content is the prior gen.
+# Builds the body with printf -v (no subshell) since this can repaint every tick.
 footer() {
   local body u=updates
   [ "$sk" -eq 1 ] && u=update
@@ -133,7 +133,7 @@ footer() {
     printf -v body '%s%s%s' "$AGE" "$more" "$rtail"
   fi
   if [ -n "$spinframe" ]; then
-    printf '\033[33m%s updating…\033[0m\033[2m · previously generated %s\033[0m' "$spinframe" "$body"
+    printf '\033[2m%s updating… · previously generated %s\033[0m' "$spinframe" "$body"
   else
     printf '\033[2m— generated %s\033[0m' "$body"
   fi
@@ -151,7 +151,7 @@ tp=$(ls -t "$HOME"/.claude/projects/*/"$sid".jsonl 2>/dev/null | head -1)   # tr
 #              last attempt, so an idle session never spends. In-memory.
 # $rtail is the dim footer tail: the standing hint (set_hint) or a transient
 # status ("✓ no change" / "⚠ summary failed"). An in-flight refresh instead shows
-# the animated $spinframe LEADING the line (amber) — see footer().
+# the animated $spinframe LEADING the line (dim grey) — see footer().
 noautof="$state_dir/$sid.brief.noauto"
 auto=1; [ -f "$noautof" ] && auto=0      # end-of-turn refresh; default ON, OFF persisted by the flag
 intv=0; last_intv=0                       # periodic during-turn refresh; default OFF
