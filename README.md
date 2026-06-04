@@ -36,8 +36,11 @@ iTerm2 — so you can tab between many concurrent sessions and instantly re-orie
   which session it's in.
 - The viewer renders the brief with `glow` + a perl post-processor (gutter, indent
   hierarchy, dimmed bullets) on the iTerm2 alt-screen, height-clipped (top-anchored).
-- A **`SessionEnd`** hook closes the dock when a session ends; state self-prunes
-  (>3 days idle) opportunistically from the Stop hook.
+- A **`SessionEnd`** hook closes the dock when a session ends **and deletes that
+  session's brief state** (summary `<sid>.brief.md`/`.task`, the ephemeral dock
+  files, and its pane/cwd map entries) — so nothing lingers on disk. The age-based
+  prune (>3 days idle, opportunistic from the Stop hook) is the backstop for
+  sessions that exit without firing SessionEnd.
 
 ## Files (mirror of the live `~/.claude` layout)
 ```
