@@ -111,6 +111,15 @@ if [ "$(uname -s)" = Darwin ] && [ -f "$root"/iterm2/DynamicProfiles/brief.json 
   mkdir -p "$HOME/Library/Application Support/iTerm2/DynamicProfiles"
   cp "$root"/iterm2/DynamicProfiles/brief.json "$HOME/Library/Application Support/iTerm2/DynamicProfiles/"
 fi
+# Apple Terminal 'brief' settings set (default styling + 1.2x line spacing) — copy
+# it, and import it via `open` only if Terminal doesn't already have it (avoids a
+# duplicate). If absent, the terminal driver just inherits the session's profile.
+if [ "$(uname -s)" = Darwin ] && [ -f "$root"/terminal/brief.terminal ]; then
+  cp "$root"/terminal/brief.terminal ~/.claude/
+  if ! osascript -e 'tell application "Terminal" to return (exists settings set "brief")' 2>/dev/null | grep -q true; then
+    open ~/.claude/brief.terminal && echo "imported Apple Terminal 'brief' profile (1.2x line spacing) — you can close the window it opened"
+  fi
+fi
 chmod +x ~/.claude/hooks/*.sh ~/.claude/bin/*.sh
 echo "installed brief-dock files into ~/.claude  (add the settings.json hooks per README)"
 
