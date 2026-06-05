@@ -26,13 +26,16 @@ tdrv_self_pane(){ printf '%s' "${TERM_SESSION_ID#*:}" | tr -dc '0-9A-Fa-f-'; }
 tdrv_open(){
   _mode=$1; shift 2; _cmd="$*"
   _pos=1; [ "$_mode" = float ] && _pos=0
+  _prof="${BRIEF_PROFILE:-brief}"
   _err="${TMPDIR:-/tmp}/brief-term.$$"
   _id=$(osascript 2>"$_err" <<OSA
 tell application "Terminal"
   activate
   set fb to {0, 0, 0, 0}
+  set srcSet to missing value
   try
     set fb to bounds of front window
+    set srcSet to current settings of front window   -- the session's profile (for inheritance)
   end try
   set newTab to do script "exec $_cmd"
   set theTty to ""
@@ -40,6 +43,18 @@ tell application "Terminal"
     set theTty to tty of newTab
   end try
   set theWin to (first window whose selected tab is newTab)
+  -- Dock styling: the "brief" settings set (\$BRIEF_PROFILE) if it exists — the
+  -- shipped brief = your default profile + 1.2× line spacing — else inherit the
+  -- session window's profile. Styling only; close stays kill-based (independent).
+  if (exists settings set "$_prof") then
+    try
+      set current settings of newTab to settings set "$_prof"
+    end try
+  else if srcSet is not missing value then
+    try
+      set current settings of newTab to srcSet
+    end try
+  end if
   if $_pos is 1 then
     set {l, tp, r, b} to fb
     try
