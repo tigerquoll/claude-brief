@@ -61,29 +61,42 @@ OSA
   printf '%s' "$_id"
 }
 
-# tdrv_close "<winid>:<tty>"  — kill the dock's processes, WAIT until the window is
-# genuinely idle (process dead AND Terminal's `busy` cleared — closing before that
-# pops the terminate prompt), then close by iterating windows. Both the wait and the
-# close avoid the flaky `whose id is` lookup (ps for the process, iteration for busy).
+# tdrv_close "<winid>:<tty>"  — make the dock window idle, then close it (a busy
+# window won't close and pops the terminate prompt; only an idle one closes clean).
+# SAFETY: ttys get recycled, so we must NEVER blanket-kill a tty — a closed dock's
+# tty may now belong to something else (e.g. a fresh `claude`). So: (a) bail unless
+# the dock window still exists, and (b) kill ONLY processes whose command is THIS
+# dock's viewer (brief-view.sh) on that tty — never anything else sharing it.
 tdrv_close(){
   _id=$1; [ -n "$_id" ] || return 0
   _win=${_id%%:*}; _tty=${_id#*:}
   case "$_win" in ''|*[!0-9]*) return 0 ;; esac
+  # The dock window must still exist; otherwise do nothing (don't touch a reused tty).
+  _exists=$(osascript -e "tell application \"Terminal\"
+  repeat with w in windows
+    if (id of w) is $_win then return \"y\"
+  end repeat
+  return \"n\"
+end tell" 2>/dev/null)
+  [ "$_exists" = y ] || return 0
   case "$_tty" in
     /dev/tty*)
       _abbr=${_tty#/dev/}
-      kill $(ps -t "$_abbr" -o pid= 2>/dev/null) 2>/dev/null
-      _i=0                       # wait (≤~3s) for: no processes on the tty …
+      _i=0                       # kill the viewer, then wait for the tab to go idle
       while [ "$_i" -lt 15 ]; do
-        if [ -z "$(ps -t "$_abbr" -o pid= 2>/dev/null | tr -d ' \n')" ]; then
-          # … and Terminal having registered the tab as not busy (else close prompts)
+        # ONLY brief-view processes on this tty — never a process that merely
+        # inherited a recycled tty.
+        _pids=$(ps -t "$_abbr" -o pid=,command= 2>/dev/null | grep -F 'brief-view.sh' | awk '{print $1}')
+        if [ -n "$_pids" ]; then
+          kill $_pids 2>/dev/null
+        else
           _b=$(osascript -e "tell application \"Terminal\"
   repeat with w in windows
     if (id of w) is $_win then return (busy of selected tab of w)
   end repeat
   return false
 end tell" 2>/dev/null)
-          [ "$_b" = false ] && break
+          [ "$_b" = false ] && break   # idle (no viewer left, Terminal agrees): safe to close
         fi
         perl -e 'select(undef,undef,undef,0.2)'
         _i=$((_i+1))
