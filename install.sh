@@ -111,11 +111,15 @@ if [ "$(uname -s)" = Darwin ] && [ -f "$root"/iterm2/DynamicProfiles/brief.json 
   mkdir -p "$HOME/Library/Application Support/iTerm2/DynamicProfiles"
   cp "$root"/iterm2/DynamicProfiles/brief.json "$HOME/Library/Application Support/iTerm2/DynamicProfiles/"
 fi
-# (The Apple Terminal 'brief' settings set is created lazily on first /brief — a
-# windowless AppleScript clone of your session profile with a bumped font size — and
-# auto-deleted when the last dock closes. See claude/bin/term/terminal.sh. Nothing
-# to install here.)
 chmod +x ~/.claude/hooks/*.sh ~/.claude/bin/*.sh
 echo "installed brief-dock files into ~/.claude  (add the settings.json hooks per README)"
+
+# Apple Terminal dock profile: build a 'brief' settings set from the profile THIS
+# Terminal uses + 1.2x line spacing (set BRIEF_FONT_BUMP=N to also enlarge the font).
+# Only when installing FROM Apple Terminal — so it reads the right profile and doesn't
+# pop a Terminal window for iTerm2/tmux/kitty users. Idempotent (skips if 'brief' exists).
+if [ "$(uname -s)" = Darwin ] && [ "${TERM_PROGRAM:-}" = Apple_Terminal ]; then
+  "$HOME/.claude/bin/brief-term-profile.sh" || true
+fi
 
 [ "$deps_ok" = 1 ] || { echo; echo "WARNING: required dependencies are missing (see above) — install them or the dock won't fully work."; exit 1; }
