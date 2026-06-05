@@ -149,6 +149,9 @@ LIB="$BIN/lib/terminal-driver.sh"
 drv(){ env -i HOME="$HOME" PATH="$PATH" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_name'; }
 is "tmux wins over iterm2"   "$(drv TMUX=x ITERM_SESSION_ID=w:abc BRIEF_TERMINAL=auto)" tmux
 is "kitty detected"         "$(drv KITTY_WINDOW_ID=3 BRIEF_TERMINAL=auto)" kitty
+is "ghostty via TERM_PROGRAM" "$(drv TERM_PROGRAM=ghostty BRIEF_TERMINAL=auto)" ghostty
+is "ghostty via GHOSTTY env"  "$(drv GHOSTTY_RESOURCES_DIR=/x BRIEF_TERMINAL=auto)" ghostty
+is "tmux wins over ghostty"  "$(drv TMUX=x TERM_PROGRAM=ghostty BRIEF_TERMINAL=auto)" tmux
 is "iterm2 detected"        "$(drv ITERM_SESSION_ID=w:abc BRIEF_TERMINAL=auto)" iterm2
 is "apple terminal detected" "$(drv TERM_PROGRAM=Apple_Terminal BRIEF_TERMINAL=auto)" terminal
 is "no terminal -> generic" "$(drv BRIEF_TERMINAL=auto)" generic
@@ -178,6 +181,15 @@ is "session file = driver + id"  "$(cat "$ST/$S.brief.session" 2>/dev/null)" "fa
 printf '{"session_id":"%s"}' "$S" | BRIEF_TERMINAL=fake bash "$HOOKS/session-end-hook.sh"
 perl -e 'select(undef,undef,undef,0.5)'   # the close runs detached (&)
 is "session-end called tdrv_close" "$(grep -c '^close FAKEID' /tmp/t-term 2>/dev/null)" 1
+rm -f "$ST/panes/FP"
+
+echo "TERMINAL DRIVER — brief-open close tears down + clears session file"
+wipe; rm -f /tmp/t-term; mkdir -p "$ST/panes"; printf '%s\n' "$S" > "$ST/panes/FP"
+BRIEF_TERMINAL=fake "$BIN/brief-open.sh" >/dev/null 2>&1            # open -> writes session file
+rm -f /tmp/t-term
+BRIEF_TERMINAL=fake "$BIN/brief-open.sh" close >/dev/null 2>&1     # close -> tdrv_close + rm session file
+is "close -> tdrv_close(FAKEID)" "$(grep -c '^close FAKEID' /tmp/t-term 2>/dev/null)" 1
+is "close clears session file"   "$([ -f "$ST/$S.brief.session" ] && echo kept || echo gone)" gone
 rm -f "$ST/panes/FP"
 
 echo

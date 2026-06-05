@@ -49,6 +49,9 @@ check_deps() {
   if command -v kitty >/dev/null 2>&1; then
     printf '  \xe2\x9c\x93 %-10s %s (driver: kitty — needs allow_remote_control + splits layout)\n' kitty "$(command -v kitty)"; have_term=1
   fi
+  if [ -d /Applications/Ghostty.app ] || [ -d "$HOME/Applications/Ghostty.app" ]; then
+    printf '  \xe2\x9c\x93 %-10s installed (driver: ghostty — AppleScript splits; one-time Automation approval)\n' Ghostty; have_term=1
+  fi
   if [ "$(uname -s)" = Darwin ]; then
     printf '  \xe2\x9c\x93 %-10s available (driver: terminal — companion window, no splits)\n' Terminal.app; have_term=1
   fi

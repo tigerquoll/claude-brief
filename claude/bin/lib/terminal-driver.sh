@@ -32,6 +32,8 @@ _brief_pick_driver() {
     auto|'')
       if   [ -n "${TMUX:-}" ];                            then _n=tmux
       elif [ -n "${KITTY_WINDOW_ID:-}" ];                 then _n=kitty
+      elif [ "${TERM_PROGRAM:-}" = ghostty ] \
+        || [ -n "${GHOSTTY_RESOURCES_DIR:-}" ];           then _n=ghostty
       elif [ "${TERM_PROGRAM:-}" = iTerm.app ] \
         || [ -n "${ITERM_SESSION_ID:-}" ];                then _n=iterm2
       elif [ "${TERM_PROGRAM:-}" = Apple_Terminal ];      then _n=terminal

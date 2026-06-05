@@ -4,15 +4,17 @@
 # latest viewer. Terminal-agnostic via the pluggable driver layer
 # (bin/lib/terminal-driver.sh): iTerm2 / tmux / kitty / Apple Terminal, plus a
 # generic fallback. Run from /brief's bash (inherits the terminal's pane env).
-#   usage: brief-open.sh [float|refresh]
+#   usage: brief-open.sh [float|refresh|close]
 #     (default) dock : side-by-side split in the current window (a companion
 #                      window on Apple Terminal, which has no scriptable splits)
 #     float          : a separate window instead
 #     refresh        : regenerate the brief now (detached), then open the dock
+#     close          : tear down this session's dock (no reopen)
 arg="${1:-}"; refresh=0
 case "$arg" in
   refresh) refresh=1; mode="dock" ;;
   float)   mode="float" ;;
+  close)   mode="close" ;;
   *)       mode="dock" ;;
 esac
 
@@ -65,6 +67,14 @@ if [ -f "$sess_file" ]; then
   if [ -n "$oldname" ] && [ -n "$oldid" ]; then
     ( BRIEF_TERMINAL="$oldname"; . "$HOME/.claude/bin/lib/terminal-driver.sh"; tdrv_close "$oldid" )
   fi
+fi
+
+# /brief close: the dock (if any) is now torn down — drop the session file and stop,
+# no reopen. (The close above ran via whichever driver opened it.)
+if [ "$mode" = close ]; then
+  if [ -f "$sess_file" ]; then rm -f "$sess_file"; echo "brief: dock closed for ${sid:0:8}"
+  else echo "brief: no dock open for ${sid:0:8}"; fi
+  exit 0
 fi
 
 new_id=$(tdrv_open "$mode" "$pane" "$HOME/.claude/bin/brief-view.sh" "$sid")

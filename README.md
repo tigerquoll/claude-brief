@@ -2,13 +2,14 @@
 
 A per-session, auto-refreshing **brief** docked beside your Claude Code session —
 so you can tab between many concurrent sessions and instantly re-orient. The
-docking terminal is **pluggable**: iTerm2, tmux, kitty, or Apple Terminal are
-auto-detected, with a generic fallback for anything else.
+docking terminal is **pluggable**: iTerm2, tmux, kitty, ghostty, or Apple Terminal
+are auto-detected, with a generic fallback for anything else.
 
 ## Commands
 - **`/brief`** — open/refocus a docked split showing this session's live brief
   (State · Tried · Gotchas · Decisions · Next). `/brief float` = separate window;
-  `/brief refresh` = regenerate the brief now instead of next turn.
+  `/brief refresh` = regenerate the brief now instead of next turn;
+  `/brief close` = tear the dock down (clean, no-prompt close on every backend).
 
 ## How it works
 - A **`Stop`** hook runs a cheap Haiku summary each completed turn (cost-gated:
@@ -38,20 +39,30 @@ auto-detected, with a generic fallback for anything else.
   which session it's in.
 - **Pluggable terminal backend.** The windowing (split the pane, run the viewer,
   close on exit) lives behind a tiny **driver** contract — `bin/lib/terminal-driver.sh`
-  sources one of `bin/term/{iterm2,tmux,kitty,terminal,generic}.sh`. The backend is
-  auto-detected (inner multiplexer wins: tmux beats the host terminal); force one
-  with `BRIEF_TERMINAL=<name>` (a name, never a path). Notes: **Apple Terminal** has
-  no scriptable split panes, so its dock is a companion window positioned beside the
-  main one; **kitty** needs `allow_remote_control yes` plus the `splits` layout;
-  unknown terminals fall back to **generic**, which just prints the
-  `brief-view.sh <sid>` command for you to run in a split you make yourself.
+  sources one of `bin/term/{iterm2,tmux,kitty,ghostty,terminal,generic}.sh`. The backend
+  is auto-detected (inner multiplexer wins: tmux beats the host terminal); force one
+  with `BRIEF_TERMINAL=<name>` (a name, never a path). Notes: **ghostty** docks via its
+  AppleScript dictionary (a real in-window split, like iTerm2) and needs a one-time
+  macOS Automation approval on first `/brief`; **Apple Terminal** has no scriptable
+  split panes, so its dock is a companion window positioned beside the main one;
+  **kitty** needs `allow_remote_control yes` plus the `splits` layout; unknown
+  terminals fall back to **generic**, which just prints the `brief-view.sh <sid>`
+  command for you to run in a split you make yourself.
 - **Dock styling (`brief` profile = your profile + 1.2× line spacing).** iTerm2
   ships `iterm2/DynamicProfiles/brief.json` (auto-loaded; inherits your Default
   profile *live*). Apple Terminal generates one at install via
   `bin/brief-term-profile.sh` — from the profile you install *from* — and imports
   it once (Terminal can't inherit or auto-load, so it's a snapshot; re-run the
-  helper to refresh). tmux/kitty just inherit their own theme. `$BRIEF_PROFILE`
-  overrides the name; `$BRIEF_FONT_BUMP=N` (Apple Terminal) also enlarges the font.
+  helper to refresh). tmux/kitty/ghostty just inherit their own theme (ghostty's
+  scripting exposes font size but no line-spacing, so it can't get a 1.2× `brief`
+  profile). `$BRIEF_PROFILE` overrides the name (iTerm2/Apple Terminal);
+  `$BRIEF_FONT_BUMP=N` (Apple Terminal) also enlarges the font.
+  - **Unfocused-pane dimming** is a global app setting, not a dock profile, so you
+    set it once yourself: on **iTerm2** uncheck Settings ▸ Appearance ▸ Dimming ▸
+    *Dim inactive split panes* (otherwise the dock fades while you're typing in the
+    session pane); on **ghostty** add `unfocused-split-opacity = 1` to
+    `~/.config/ghostty/config` (plus `adjust-cell-height = 20%` for ~1.2× spacing).
+    These are global — neither terminal can scope them to just the dock.
 - The viewer renders the brief with `glow` + a perl post-processor (gutter, indent
   hierarchy, dimmed bullets) on the terminal alt-screen, height-clipped (top-anchored).
 - A **`SessionEnd`** hook closes the dock when a session ends **and deletes that
@@ -65,7 +76,7 @@ auto-detected, with a generic fallback for anything else.
 claude/hooks/      task-prompt-hook.sh task-summary-hook.sh task-summary-worker.sh session-end-hook.sh
 claude/bin/        brief-open.sh brief-view.sh brief-prune.sh brief-summarize.sh brief-summarize-api.sh brief-term-profile.sh
 claude/bin/lib/    terminal-driver.sh                     (sourced: detect + dispatch)
-claude/bin/term/   iterm2.sh tmux.sh kitty.sh terminal.sh generic.sh   (terminal drivers)
+claude/bin/term/   iterm2.sh tmux.sh kitty.sh ghostty.sh terminal.sh generic.sh   (terminal drivers)
 claude/commands/   brief.md
 claude/glow-brief.json
 iterm2/DynamicProfiles/brief.json      (iterm2 dock profile: Default + 1.2x line spacing)
@@ -93,6 +104,8 @@ bash ≥ 5 for the dock viewer (`brew install bash`; the hooks + drivers alone a
 3.2-safe) · `jq` · `perl` (built-in; also the summarizer's 90s watchdog, so no
 coreutils needed) · the `claude` CLI. Plus **one terminal backend**:
 - **iTerm2** 3.6+ (macOS) — uses `osascript` (built-in)
+- **ghostty** (macOS) — `osascript` via Ghostty's AppleScript dictionary; real
+  in-window split; first run needs a one-time Automation approval
 - **Apple Terminal** (macOS) — `osascript`; companion window, no splits; first run
   needs a one-time Automation approval
 - **tmux** (macOS/Linux)
