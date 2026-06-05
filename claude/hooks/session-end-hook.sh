@@ -31,4 +31,22 @@ rmdir "$st/$sid.brief.lock" 2>/dev/null    # a dir; rm -f won't take it
 # Drop pane/cwd -> sid map entries that pointed at this (now-ended) session
 # (a still-open session in the same cwd has already rewritten its entry to its own sid).
 grep -lxF "$sid" "$st/panes/"* "$st/cwds/"* 2>/dev/null | while IFS= read -r f; do rm -f "$f"; done
+
+# Apple Terminal only: if WE auto-created the dock settings set (the terminal driver
+# leaves a marker holding its name) and NO other Apple Terminal docks remain — ref-
+# counted via the surviving "<driver> ..." session files — delete the profile too.
+# This session's own .brief.session was just removed above, so it's excluded.
+if [ -f "$st/brief.profile.auto" ]; then
+  others=0
+  for sf in "$st"/*.brief.session; do
+    [ -f "$sf" ] || continue
+    case "$(cat "$sf" 2>/dev/null)" in terminal\ *) others=1 ;; esac
+  done
+  if [ "$others" = 0 ]; then
+    pn=$(cat "$st/brief.profile.auto" 2>/dev/null)
+    case "$pn" in ''|*[!A-Za-z0-9_-]*) pn="" ;; esac
+    [ -n "$pn" ] && osascript -e "tell application \"Terminal\" to delete settings set \"$pn\"" >/dev/null 2>&1
+    rm -f "$st/brief.profile.auto"
+  fi
+fi
 exit 0

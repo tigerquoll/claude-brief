@@ -13,5 +13,4 @@ cp ~/.claude/glow-brief.json "$root"/claude/
 if [ -f "$HOME/Library/Application Support/iTerm2/DynamicProfiles/brief.json" ]; then
   cp "$HOME/Library/Application Support/iTerm2/DynamicProfiles/brief.json" "$root"/iterm2/DynamicProfiles/
 fi
-[ -f ~/.claude/brief.terminal ] && { mkdir -p "$root"/terminal; cp ~/.claude/brief.terminal "$root"/terminal/; }
 echo "synced live ~/.claude -> $root"

@@ -22,11 +22,42 @@ tdrv_name(){ printf 'terminal'; }
 # prefix is positional/unstable, the UUID is the stable token. Hex+dash only.
 tdrv_self_pane(){ printf '%s' "${TERM_SESSION_ID#*:}" | tr -dc '0-9A-Fa-f-'; }
 
+# Lazily create the dock's settings set ($BRIEF_PROFILE, default "brief") the first
+# time it's needed, by CLONING the session's current profile (font, colors, …) and
+# bumping the font size ($BRIEF_FONT_BUMP, default +2) — entirely via AppleScript, so
+# NO window is opened. Records a marker so session-end can delete it (ref-counted)
+# once the last dock closes. NOTE: line spacing (FontHeightSpacing) is deliberately
+# NOT set — AppleScript can't, and the only alternative (importing a .terminal) opens
+# a window that Terminal won't let us close cleanly. Best-effort: on failure the dock
+# just inherits the session profile unchanged.
+_brief_make_profile(){
+  _p="${BRIEF_PROFILE:-brief}"
+  osascript -e "tell application \"Terminal\" to return (exists settings set \"$_p\")" 2>/dev/null | grep -qi true && return 0
+  osascript >/dev/null 2>&1 <<OSA
+tell application "Terminal"
+  try
+    set ns to (make new settings set with properties (properties of current settings of front window))
+    try
+      set name of ns to "$_p"
+    end try
+    try
+      set font size of ns to ((font size of ns) + ${BRIEF_FONT_BUMP:-2})
+    end try
+  end try
+end tell
+OSA
+  # mark auto-created (only if it now exists) so session-end can ref-count + delete it
+  osascript -e "tell application \"Terminal\" to return (exists settings set \"$_p\")" 2>/dev/null | grep -qi true \
+    && printf '%s' "$_p" > "$HOME/.claude/state/brief.profile.auto" 2>/dev/null
+  return 0
+}
+
 # tdrv_open MODE ANCHOR CMD…  -> echo "<winid>:<tty>" (tty captured for a reliable close)
 tdrv_open(){
   _mode=$1; shift 2; _cmd="$*"
   _pos=1; [ "$_mode" = float ] && _pos=0
   _prof="${BRIEF_PROFILE:-brief}"
+  _brief_make_profile                    # lazily create "brief" from the session profile if missing
   _err="${TMPDIR:-/tmp}/brief-term.$$"
   _id=$(osascript 2>"$_err" <<OSA
 tell application "Terminal"
