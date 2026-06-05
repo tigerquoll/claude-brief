@@ -1,12 +1,14 @@
-# claude-context — live session-brief dock for Claude Code + iTerm2
+# claude-context — live session-brief dock for Claude Code
 
-A per-session, auto-refreshing **brief** docked beside your Claude Code session in
-iTerm2 — so you can tab between many concurrent sessions and instantly re-orient.
+A per-session, auto-refreshing **brief** docked beside your Claude Code session —
+so you can tab between many concurrent sessions and instantly re-orient. The
+docking terminal is **pluggable**: iTerm2, tmux, kitty, or Apple Terminal are
+auto-detected, with a generic fallback for anything else.
 
 ## Commands
-- **`/brief`** — open/refocus a docked iTerm2 split showing this session's live
-  brief (State · Tried · Gotchas · Decisions · Next). `/brief float` = separate
-  window; `/brief refresh` = regenerate the brief now instead of next turn.
+- **`/brief`** — open/refocus a docked split showing this session's live brief
+  (State · Tried · Gotchas · Decisions · Next). `/brief float` = separate window;
+  `/brief refresh` = regenerate the brief now instead of next turn.
 
 ## How it works
 - A **`Stop`** hook runs a cheap Haiku summary each completed turn (cost-gated:
@@ -34,8 +36,17 @@ iTerm2 — so you can tab between many concurrent sessions and instantly re-orie
   the same gateway Claude Code already uses).
 - A **`UserPromptSubmit`** hook maps pane/cwd → session id so `/brief` resolves
   which session it's in.
+- **Pluggable terminal backend.** The windowing (split the pane, run the viewer,
+  close on exit) lives behind a tiny **driver** contract — `bin/lib/terminal-driver.sh`
+  sources one of `bin/term/{iterm2,tmux,kitty,terminal,generic}.sh`. The backend is
+  auto-detected (inner multiplexer wins: tmux beats the host terminal); force one
+  with `BRIEF_TERMINAL=<name>` (a name, never a path). Notes: **Apple Terminal** has
+  no scriptable split panes, so its dock is a companion window positioned beside the
+  main one; **kitty** needs `allow_remote_control yes` plus the `splits` layout;
+  unknown terminals fall back to **generic**, which just prints the
+  `brief-view.sh <sid>` command for you to run in a split you make yourself.
 - The viewer renders the brief with `glow` + a perl post-processor (gutter, indent
-  hierarchy, dimmed bullets) on the iTerm2 alt-screen, height-clipped (top-anchored).
+  hierarchy, dimmed bullets) on the terminal alt-screen, height-clipped (top-anchored).
 - A **`SessionEnd`** hook closes the dock when a session ends **and deletes that
   session's brief state** (summary `<sid>.brief.md`/`.task`, the ephemeral dock
   files, and its pane/cwd map entries) — so nothing lingers on disk. The age-based
@@ -45,10 +56,12 @@ iTerm2 — so you can tab between many concurrent sessions and instantly re-orie
 ## Files (mirror of the live `~/.claude` layout)
 ```
 claude/hooks/      task-prompt-hook.sh task-summary-hook.sh task-summary-worker.sh session-end-hook.sh
-claude/bin/        brief-open.sh brief-view.sh brief-prune.sh brief-summarize.sh
+claude/bin/        brief-open.sh brief-view.sh brief-prune.sh brief-summarize.sh brief-summarize-api.sh
+claude/bin/lib/    terminal-driver.sh                     (sourced: detect + dispatch)
+claude/bin/term/   iterm2.sh tmux.sh kitty.sh terminal.sh generic.sh   (terminal drivers)
 claude/commands/   brief.md
 claude/glow-brief.json
-iterm2/DynamicProfiles/brief.json      (Default profile + 1.2x line spacing)
+iterm2/DynamicProfiles/brief.json      (Default profile + 1.2x line spacing; iterm2 driver only)
 ```
 
 ## Install / sync / restore
@@ -69,11 +82,18 @@ iterm2/DynamicProfiles/brief.json      (Default profile + 1.2x line spacing)
   ```
 
 ## Requirements
-macOS · iTerm2 3.6+ · bash ≥ 5 for the dock viewer (`brew install bash`; the
-hooks alone are 3.2-safe) · `jq` · `perl` (built-in;
-also the summarizer's 90s watchdog, so no coreutils needed) · the `claude` CLI ·
-`osascript` (built-in). Optional: `glow` (`brew install glow`, recommended) or
-`bat` for nicer rendering. `./install.sh --check` verifies all of these.
+bash ≥ 5 for the dock viewer (`brew install bash`; the hooks + drivers alone are
+3.2-safe) · `jq` · `perl` (built-in; also the summarizer's 90s watchdog, so no
+coreutils needed) · the `claude` CLI. Plus **one terminal backend**:
+- **iTerm2** 3.6+ (macOS) — uses `osascript` (built-in)
+- **Apple Terminal** (macOS) — `osascript`; companion window, no splits; first run
+  needs a one-time Automation approval
+- **tmux** (macOS/Linux)
+- **kitty** (macOS/Linux) — set `allow_remote_control yes` + the `splits` layout
+
+Optional: `glow` (`brew install glow`, recommended) or `bat` for nicer rendering.
+`./install.sh --check` reports which backends are available and the one
+auto-detected in the current terminal.
 
 Design notes, iTerm2/terminal gotchas, and the summary cost model are recorded in
 this project's Claude memory (`brief-dock-system`, `iterm2-36-scripting-gotchas`,

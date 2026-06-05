@@ -1,11 +1,13 @@
 ---
-description: Open/focus the docked iTerm2 pane showing this session's live brief
+description: Open/focus the docked pane showing this session's live brief
 argument-hint: "[float|refresh]"
 allowed-tools: Bash(~/.claude/bin/brief-open.sh:*)
 ---
 This session's running brief (state · what's been tried · gotchas · decisions ·
-next) is shown in a docked iTerm2 pane — a side-by-side split, opened or
-re-focused just now. Click the dock pane to use its keys: `r` refresh now ·
+next) is shown in a docked pane — a side-by-side split (or, on Apple Terminal,
+a companion window beside this one), opened or re-focused just now. The terminal
+backend is auto-detected (iTerm2 / tmux / kitty / Apple Terminal). Click the dock
+pane to use its keys: `r` refresh now ·
 `a` toggle **auto** (refresh at the end of each turn — the default; turn off for
 on-demand only) · `i` toggle **interval** (refresh periodically during a long
 turn; only fires on new activity, so idle never spends) · `+`/`-` set the

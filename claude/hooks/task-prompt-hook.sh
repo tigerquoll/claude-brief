@@ -16,12 +16,14 @@ umask 077   # state files can summarize sensitive session content -> keep them p
 
 # Record which session is live in this pane / working dir, so on-demand tools
 # (the /brief command) can resolve the current session id from where they run.
-# Primary key: stable iTerm2 session UUID (part after the colon) — correct even
-# for two tabs in the same dir. Fallback key: cwd. Both this hook and a command's
-# bash inherit these from the pane's shell. Done before the synthetic-prompt
-# filter below so the map stays fresh even on /brief itself.
+# Primary key: the terminal's stable per-pane id, via the pluggable driver layer
+# (iTerm2/tmux/kitty/Apple-Terminal) — correct even for two tabs in the same dir.
+# Fallback key: cwd. Both this hook and a command's bash inherit the terminal env
+# from the pane's shell, so they compute the same key. Done before the synthetic-
+# prompt filter below so the map stays fresh even on /brief itself.
 cwd=$(printf '%s' "$input" | jq -r '.cwd // empty')
-pane=$(printf '%s' "${ITERM_SESSION_ID#*:}" | tr -dc '0-9A-Fa-f-')   # whitelist the key
+. "$HOME/.claude/bin/lib/terminal-driver.sh"
+pane=$(tdrv_self_pane); pane=$(printf '%s' "$pane" | tr -dc '0-9A-Za-z%:_-')   # fs-safe key
 if [ -n "$pane" ]; then
   pane_dir="$HOME/.claude/state/panes"; mkdir -p "$pane_dir"
   printf '%s\n' "$sid" > "$pane_dir/$pane"

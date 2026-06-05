@@ -15,12 +15,13 @@ root="$(cd "$(dirname "$0")" && pwd)"
 check_deps() {
   local missing=0 entry cmd hint
 
-  # Platform — the dock is macOS + iTerm2 specific (osascript, BSD stat -f/ls -t).
+  # Platform — the iTerm2/Apple-Terminal drivers are macOS-only (osascript, BSD
+  # stat -f/ls -t); the tmux/kitty drivers also work on Linux. So macOS is
+  # recommended but no longer strictly required.
   if [ "$(uname -s)" = Darwin ]; then
     printf '  \xe2\x9c\x93 %-10s macOS\n' platform
   else
-    printf '  \xe2\x9c\x97 %-10s %s — built for macOS (osascript, BSD stat/ls)\n' platform "$(uname -s)"
-    missing=1
+    printf '  ~ %-10s %s — iTerm2/Terminal drivers need macOS; tmux/kitty work here\n' platform "$(uname -s)"
   fi
 
   # bash >= 5 — the viewer uses $EPOCHSECONDS (bash 5.0) for its timers; macOS
@@ -34,14 +35,29 @@ check_deps() {
     missing=1
   fi
 
-  # iTerm2 app — the dock splits iTerm2 panes; brief generation works without it,
-  # but `/brief` does not.
-  if [ -d /Applications/iTerm.app ] || [ -d "$HOME/Applications/iTerm.app" ] \
-     || osascript -e 'id of application "iTerm2"' >/dev/null 2>&1; then
-    printf '  \xe2\x9c\x93 %-10s installed\n' iTerm2
-  else
-    printf '  \xe2\x9c\x97 %-10s not found — the dock needs iTerm2 (https://iterm2.com)\n' iTerm2
-    missing=1
+  # Terminal backends — the dock needs ONE scriptable terminal driver. iTerm2 and
+  # Apple Terminal (macOS), tmux and kitty (cross-platform). At least one should be
+  # usable; otherwise only the generic "run the viewer yourself" fallback applies.
+  # None of these is individually required, so absence is advisory (~), not a fail.
+  local have_term=0
+  if [ -d /Applications/iTerm.app ] || [ -d "$HOME/Applications/iTerm.app" ]; then
+    printf '  \xe2\x9c\x93 %-10s installed (driver: iterm2)\n' iTerm2; have_term=1
+  fi
+  if command -v tmux >/dev/null 2>&1; then
+    printf '  \xe2\x9c\x93 %-10s %s (driver: tmux)\n' tmux "$(command -v tmux)"; have_term=1
+  fi
+  if command -v kitty >/dev/null 2>&1; then
+    printf '  \xe2\x9c\x93 %-10s %s (driver: kitty — needs allow_remote_control + splits layout)\n' kitty "$(command -v kitty)"; have_term=1
+  fi
+  if [ "$(uname -s)" = Darwin ]; then
+    printf '  \xe2\x9c\x93 %-10s available (driver: terminal — companion window, no splits)\n' Terminal.app; have_term=1
+  fi
+  [ "$have_term" = 1 ] || printf '  ~ %-10s none detected — only the generic paste-the-viewer fallback works\n' backends
+  # Which driver auto-detection picks in THIS terminal right now (also smoke-tests
+  # the driver library against the repo's drivers).
+  if [ -f "$root/claude/bin/lib/terminal-driver.sh" ]; then
+    local d; d=$( BRIEF_TERM_DIR="$root/claude/bin/term"; . "$root/claude/bin/lib/terminal-driver.sh" >/dev/null 2>&1; tdrv_name 2>/dev/null )
+    [ -n "$d" ] && printf '  \xe2\x86\x92 active driver here: %s\n' "$d"
   fi
 
   # Required external commands (cmd:install-hint).
@@ -83,12 +99,18 @@ fi
 
 # --- install ----------------------------------------------------------------
 echo
-mkdir -p ~/.claude/hooks ~/.claude/bin ~/.claude/commands "$HOME/Library/Application Support/iTerm2/DynamicProfiles"
+mkdir -p ~/.claude/hooks ~/.claude/bin ~/.claude/bin/lib ~/.claude/bin/term ~/.claude/commands
 cp "$root"/claude/hooks/*.sh ~/.claude/hooks/
 cp "$root"/claude/bin/*.sh ~/.claude/bin/
+cp "$root"/claude/bin/lib/*.sh ~/.claude/bin/lib/
+cp "$root"/claude/bin/term/*.sh ~/.claude/bin/term/
 cp "$root"/claude/commands/*.md ~/.claude/commands/
 cp "$root"/claude/glow-brief.json ~/.claude/
-cp "$root"/iterm2/DynamicProfiles/brief.json "$HOME/Library/Application Support/iTerm2/DynamicProfiles/"
+# iTerm2 dock profile — only on macOS, and only if present in the repo.
+if [ "$(uname -s)" = Darwin ] && [ -f "$root"/iterm2/DynamicProfiles/brief.json ]; then
+  mkdir -p "$HOME/Library/Application Support/iTerm2/DynamicProfiles"
+  cp "$root"/iterm2/DynamicProfiles/brief.json "$HOME/Library/Application Support/iTerm2/DynamicProfiles/"
+fi
 chmod +x ~/.claude/hooks/*.sh ~/.claude/bin/*.sh
 echo "installed brief-dock files into ~/.claude  (add the settings.json hooks per README)"
 

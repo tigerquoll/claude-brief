@@ -13,21 +13,15 @@ sid=$(printf '%s' "$input" | jq -r '.session_id // empty')
 case "$sid" in *[!0-9a-fA-F-]*) exit 0 ;; esac
 
 st="$HOME/.claude/state"
-known=$(cat "$st/$sid.brief.session" 2>/dev/null)
-case "$known" in *[!0-9a-fA-F-]*) known="" ;; esac   # only act on a UUID-shaped id
-
-if [ -n "$known" ]; then
-  osascript >/dev/null 2>&1 <<OSA &
-tell application "iTerm2"
-  repeat with w in windows
-    repeat with t in tabs of w
-      repeat with s in sessions of t
-        if (id of s) is "$known" then close s
-      end repeat
-    end repeat
-  end repeat
-end tell
-OSA
+# Close the dock via whichever driver opened it. <sid>.brief.session = "<driver>
+# <pane-id>" (legacy single-token => iterm2). Force that driver, then tdrv_close
+# (which validates the id for its own format). Detached so it never blocks.
+sess=$(cat "$st/$sid.brief.session" 2>/dev/null)
+dname=${sess%% *}; did=${sess#* }
+[ "$dname" = "$did" ] && dname=iterm2                 # legacy single-token => iterm2
+case "$dname" in *[!a-z0-9]*) dname="" ;; esac        # only honour a clean driver name
+if [ -n "$dname" ] && [ -n "$did" ]; then
+  ( BRIEF_TERMINAL="$dname"; . "$HOME/.claude/bin/lib/terminal-driver.sh"; tdrv_close "$did" ) &
 fi
 
 # Remove ALL of this session's brief state (content + ephemeral), not just the
