@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Live viewer for a session brief, run inside the docked iTerm2 pane that
-# /brief opens. Full-redraws only when the brief changes (fork-free `-nt` test)
+# Live viewer for a session brief, run inside the docked pane that /brief opens
+# (terminal-agnostic — the dock is created by the pluggable driver layer). Full-
+# redraws only when the brief changes (fork-free `-nt` test)
 # or the pane is resized; otherwise just reprints the footer line. The loop polls
 # ~2x/s via `read -t`, which doubles as the keypress reader (r/a/i/+/-/?/q).
 # Paints on the ALT SCREEN buffer (like top/less) so a brief that fits the pane

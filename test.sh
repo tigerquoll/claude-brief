@@ -17,7 +17,7 @@ mkfake(){ printf '%s' "$2" > "$BIN/$1"; chmod 755 "$BIN/$1"; }
 
 S=feed0000-0000-0000-0000-000000000000          # throwaway, UUID-shaped
 wipe(){ rm -f "$ST/$S".* 2>/dev/null; rmdir "$ST/$S.brief.lock" 2>/dev/null; }
-trap 'wipe; rm -f "$BIN"/t-*.sh /tmp/t-* 2>/dev/null' EXIT
+trap 'wipe; rm -f "$BIN"/t-*.sh "$BIN/term/fake.sh" /tmp/t-* 2>/dev/null' EXIT
 
 mkfake t-ok.sh   $'#!/usr/bin/env bash\nprintf "goal: g\\nnow: GOOD\\n===BRIEF===\\n# T\\n## State\\n- s\\n## Tried\\n—\\n## Gotchas\\n—\\n## Decisions\\n—\\n## Next / Open\\n- n\\n"\n'
 mkfake t-unch.sh $'#!/usr/bin/env bash\nprintf "goal: g\\nnow: n\\n===BRIEF===\\nUNCHANGED\\n"\n'
@@ -141,6 +141,44 @@ snap(){ local v=$1 idx=3 best=2147483647 i d; for i in "${!LADDER[@]}"; do d=$((
 is "snap 420->300"  "$(snap 420)" 300
 is "snap 700->600"  "$(snap 700)" 600
 is "snap 5000->3600" "$(snap 5000)" 3600
+
+echo "TERMINAL DRIVER — auto-detection precedence + \$BRIEF_TERMINAL whitelist"
+LIB="$BIN/lib/terminal-driver.sh"
+# Source the live driver lib in a clean env with controlled terminal vars; echo
+# the chosen driver. env -i wipes PATH but tdrv_name only printf's, so that's fine.
+drv(){ env -i HOME="$HOME" PATH="$PATH" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_name'; }
+is "tmux wins over iterm2"   "$(drv TMUX=x ITERM_SESSION_ID=w:abc BRIEF_TERMINAL=auto)" tmux
+is "kitty detected"         "$(drv KITTY_WINDOW_ID=3 BRIEF_TERMINAL=auto)" kitty
+is "iterm2 detected"        "$(drv ITERM_SESSION_ID=w:abc BRIEF_TERMINAL=auto)" iterm2
+is "apple terminal detected" "$(drv TERM_PROGRAM=Apple_Terminal BRIEF_TERMINAL=auto)" terminal
+is "no terminal -> generic" "$(drv BRIEF_TERMINAL=auto)" generic
+is "explicit override wins" "$(drv TMUX=x BRIEF_TERMINAL=kitty)" kitty
+is "traversal -> generic"   "$(drv BRIEF_TERMINAL=../evil)" generic
+is "slashes -> generic"     "$(drv BRIEF_TERMINAL=a/b)" generic
+is "unknown -> generic"     "$(drv BRIEF_TERMINAL=nope)" generic
+
+echo "TERMINAL DRIVER — self_pane is filesystem-safe (no slash)"
+sp(){ env -i HOME="$HOME" PATH="$PATH" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_self_pane'; }
+is "tmux self id"        "$(sp TMUX=x TMUX_PANE=%7 BRIEF_TERMINAL=tmux)" "%7"
+is "kitty self id"       "$(sp KITTY_WINDOW_ID=42 BRIEF_TERMINAL=kitty)" "42"
+is "iterm2 self hex-only" "$(sp ITERM_SESSION_ID='w0t0p0:AB/../CD' BRIEF_TERMINAL=iterm2)" "ABCD"
+
+echo "TERMINAL DRIVER — .brief.session parse (MIRROR of brief-open/session-end)"
+parse(){ local s=$1 n i; n=${s%% *}; i=${s#* }; [ "$n" = "$i" ] && n=iterm2; case "$n" in *[!a-z0-9]*) n="" ;; esac; echo "$n|$i"; }
+is "two-token parse" "$(parse 'tmux %3')" 'tmux|%3'
+is "legacy single -> iterm2" "$(parse 'ABCD-1234')" 'iterm2|ABCD-1234'
+
+echo "TERMINAL DRIVER — brief-open/session-end drive the driver (fake backend)"
+mkdir -p "$BIN/term"
+printf '%s' $'tdrv_name(){ printf fake; }\ntdrv_self_pane(){ printf FP; }\ntdrv_open(){ echo "open $*" >>/tmp/t-term; printf FAKEID; }\ntdrv_close(){ echo "close $*" >>/tmp/t-term; }\n' > "$BIN/term/fake.sh"
+wipe; rm -f /tmp/t-term; mkdir -p "$ST/panes"; printf '%s\n' "$S" > "$ST/panes/FP"
+BRIEF_TERMINAL=fake "$BIN/brief-open.sh" >/dev/null 2>&1
+is "brief-open called tdrv_open" "$(grep -c "^open dock FP " /tmp/t-term 2>/dev/null)" 1
+is "session file = driver + id"  "$(cat "$ST/$S.brief.session" 2>/dev/null)" "fake FAKEID"
+printf '{"session_id":"%s"}' "$S" | BRIEF_TERMINAL=fake bash "$HOOKS/session-end-hook.sh"
+perl -e 'select(undef,undef,undef,0.5)'   # the close runs detached (&)
+is "session-end called tdrv_close" "$(grep -c '^close FAKEID' /tmp/t-term 2>/dev/null)" 1
+rm -f "$ST/panes/FP"
 
 echo
 printf 'RESULT: %d passed, %d failed\n' "$pass" "$fail"
