@@ -45,6 +45,13 @@ auto-detected, with a generic fallback for anything else.
   main one; **kitty** needs `allow_remote_control yes` plus the `splits` layout;
   unknown terminals fall back to **generic**, which just prints the
   `brief-view.sh <sid>` command for you to run in a split you make yourself.
+- **Dock styling (`brief` profile = your profile + 1.2× line spacing).** iTerm2
+  ships `iterm2/DynamicProfiles/brief.json` (auto-loaded; inherits your Default
+  profile *live*). Apple Terminal generates one at install via
+  `bin/brief-term-profile.sh` — from the profile you install *from* — and imports
+  it once (Terminal can't inherit or auto-load, so it's a snapshot; re-run the
+  helper to refresh). tmux/kitty just inherit their own theme. `$BRIEF_PROFILE`
+  overrides the name; `$BRIEF_FONT_BUMP=N` (Apple Terminal) also enlarges the font.
 - The viewer renders the brief with `glow` + a perl post-processor (gutter, indent
   hierarchy, dimmed bullets) on the terminal alt-screen, height-clipped (top-anchored).
 - A **`SessionEnd`** hook closes the dock when a session ends **and deletes that
@@ -56,12 +63,12 @@ auto-detected, with a generic fallback for anything else.
 ## Files (mirror of the live `~/.claude` layout)
 ```
 claude/hooks/      task-prompt-hook.sh task-summary-hook.sh task-summary-worker.sh session-end-hook.sh
-claude/bin/        brief-open.sh brief-view.sh brief-prune.sh brief-summarize.sh brief-summarize-api.sh
+claude/bin/        brief-open.sh brief-view.sh brief-prune.sh brief-summarize.sh brief-summarize-api.sh brief-term-profile.sh
 claude/bin/lib/    terminal-driver.sh                     (sourced: detect + dispatch)
 claude/bin/term/   iterm2.sh tmux.sh kitty.sh terminal.sh generic.sh   (terminal drivers)
 claude/commands/   brief.md
 claude/glow-brief.json
-iterm2/DynamicProfiles/brief.json      (Default profile + 1.2x line spacing; iterm2 driver only)
+iterm2/DynamicProfiles/brief.json      (iterm2 dock profile: Default + 1.2x line spacing)
 ```
 
 ## Install / sync / restore
