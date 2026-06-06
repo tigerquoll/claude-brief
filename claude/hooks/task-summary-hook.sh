@@ -6,6 +6,7 @@
 
 # Recursion guard: the worker's inner `claude -p` re-fires this hook on Stop.
 [ -n "$CLAUDE_TASK_SUMMARY" ] && exit 0
+. "$HOME/.claude/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 
 input=$(cat)
 sid=$(printf '%s' "$input" | jq -r '.session_id // empty')
@@ -20,7 +21,7 @@ umask 077   # state files can summarize sensitive session content -> keep them p
 
 # Opportunistic state prune, at most once/day, detached so it adds no latency.
 prunestamp="$HOME/.claude/state/.prune-stamp"
-if [ ! -f "$prunestamp" ] || [ "$(( $(date +%s) - $(stat -f %m "$prunestamp" 2>/dev/null || echo 0) ))" -gt 86400 ]; then
+if [ ! -f "$prunestamp" ] || [ "$(( $(date +%s) - $(_mtime "$prunestamp") ))" -gt 86400 ]; then
   mkdir -p "$HOME/.claude/state"; : > "$prunestamp"
   nohup "$HOME/.claude/bin/brief-prune.sh" >/dev/null 2>&1 &
 fi

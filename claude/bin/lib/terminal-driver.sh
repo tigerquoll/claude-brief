@@ -26,6 +26,36 @@
 
 _BRIEF_TERM_DIR="${BRIEF_TERM_DIR:-$HOME/.claude/bin/term}"
 
+# Auto-detect a DROP-IN driver — the extension point for porters / custom terminals.
+# Any term/<name>.sh that defines tdrv_detect() (returns 0 when it recognises the
+# current terminal) is picked up here with NO edit to this file. An optional
+# tdrv_priority() (a 0-99 number, default 0; highest wins) breaks ties between
+# several matching drop-ins. The built-in chain below is consulted FIRST (so the
+# shipped drivers keep their exact, tested precedence — incl. inner-mux-wins); this
+# only runs when none of them claimed the terminal, and returns 'generic' if no
+# drop-in claims it either. Each candidate is sourced in a SUBSHELL so probing can't
+# disturb the real load. Built-in drivers define no tdrv_detect, so they're skipped
+# here harmlessly. Kept bash-3.2-safe.
+_brief_autodetect_extra() {
+  _best=generic _bestpri=-1
+  for _f in "$_BRIEF_TERM_DIR"/*.sh; do
+    [ -f "$_f" ] || continue
+    _cand=$(
+      . "$_f" >/dev/null 2>&1 || exit 0
+      command -v tdrv_detect >/dev/null 2>&1 || exit 0
+      tdrv_detect >/dev/null 2>&1 || exit 0
+      _p=0; command -v tdrv_priority >/dev/null 2>&1 && _p=$(tdrv_priority 2>/dev/null)
+      printf '%s %s' "${_p:-0}" "$(tdrv_name 2>/dev/null)"
+    )
+    [ -n "$_cand" ] || continue
+    _pri=${_cand%% *} _nm=${_cand#* }
+    case "$_pri" in ''|*[!0-9]*) _pri=0 ;; esac
+    case "$_nm"  in ''|*[!a-z0-9]*) continue ;; esac
+    [ "$_pri" -gt "$_bestpri" ] && { _best=$_nm _bestpri=$_pri; }
+  done
+  printf '%s' "$_best"
+}
+
 _brief_pick_driver() {
   _n="${BRIEF_TERMINAL:-auto}"
   case "$_n" in
@@ -41,7 +71,7 @@ _brief_pick_driver() {
       elif [ "${TERM_PROGRAM:-}" = iTerm.app ] \
         || [ -n "${ITERM_SESSION_ID:-}" ];                then _n=iterm2
       elif [ "${TERM_PROGRAM:-}" = Apple_Terminal ];      then _n=terminal
-      else                                                     _n=generic
+      else                                                     _n=$(_brief_autodetect_extra)
       fi ;;
   esac
   # Name whitelist: lowercase alnum only. Anything else (a path, traversal, empty,

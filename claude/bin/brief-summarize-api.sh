@@ -20,9 +20,10 @@
 # Any of these may instead live in ~/.claude/brief-summarizer.env (sourced if it's
 # yours and not group/other-writable) — handy to keep the token out of settings.json,
 # and out of the main session's environment entirely.
+. "$HOME/.claude/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 cfg="$HOME/.claude/brief-summarizer.env"
 if [ -f "$cfg" ] && [ -O "$cfg" ]; then
-  cperm=$(stat -f %Lp "$cfg" 2>/dev/null || echo 777)
+  cperm=$(_perm "$cfg")
   (( 8#$cperm & 0022 )) || . "$cfg"   # source only if not group/other-writable
 fi
 base=${BRIEF_API_BASE:-${ANTHROPIC_BASE_URL:-https://ai-gateway.cloudops.cloudera.com}}

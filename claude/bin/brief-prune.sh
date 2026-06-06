@@ -5,6 +5,7 @@
 # hand or called opportunistically (<=1x/day) from the Stop hook. Safe to re-run.
 st="$HOME/.claude/state"
 [ -d "$st" ] || exit 0
+. "$HOME/.claude/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 days=${BRIEF_PRUNE_AGE_DAYS:-3}
 now=$(date +%s); age=$((days * 24 * 3600))
 
@@ -16,7 +17,7 @@ ls "$st"/*.task "$st"/*.brief.md 2>/dev/null \
   newest=0
   for f in "$st/$sid".*; do
     [ -e "$f" ] || continue
-    m=$(stat -f %m "$f" 2>/dev/null); [ "${m:-0}" -gt "$newest" ] && newest=$m
+    m=$(_mtime "$f"); [ "${m:-0}" -gt "$newest" ] && newest=$m
   done
   [ "$newest" -gt 0 ] && [ $((now - newest)) -gt "$age" ] && rm -f "$st/$sid".*
 done

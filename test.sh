@@ -142,6 +142,20 @@ is "snap 420->300"  "$(snap 420)" 300
 is "snap 700->600"  "$(snap 700)" 600
 is "snap 5000->3600" "$(snap 5000)" 3600
 
+echo "PORTABLE — _mtime/_perm pick the right stat flavor (BSD vs GNU, stubbed)"
+# The core uses _mtime/_perm (bin/lib/portable.sh) instead of raw `stat`, so it runs
+# on Linux (GNU stat) as well as macOS (BSD stat). Stub each `stat` flavour on PATH
+# to prove the shim selects the right flags on BOTH — independent of this host's OS.
+PD=$(mktemp -d "${TMPDIR:-/tmp}/t-port.XXXXXX"); mkdir -p "$PD/gnu" "$PD/bsd"
+printf '%s' $'#!/usr/bin/env bash\ncase "$1" in -c) case "$2" in %Y) echo 111;; %a) echo 640;; *) exit 1;; esac;; *) exit 1;; esac\n' > "$PD/gnu/stat"
+printf '%s' $'#!/usr/bin/env bash\ncase "$1" in -f) case "$2" in %m) echo 222;; %Lp) echo 750;; *) exit 1;; esac;; -c) echo "illegal option -- c">&2; exit 1;; *) exit 1;; esac\n' > "$PD/bsd/stat"
+chmod +x "$PD/gnu/stat" "$PD/bsd/stat"
+is "GNU stat -> _mtime via -c %Y" "$(PATH="$PD/gnu:$PATH" bash -c '. "'"$BIN"'/lib/portable.sh"; _mtime x')" 111
+is "GNU stat -> _perm via -c %a"  "$(PATH="$PD/gnu:$PATH" bash -c '. "'"$BIN"'/lib/portable.sh"; _perm x')" 640
+is "BSD stat -> _mtime via -f %m" "$(PATH="$PD/bsd:$PATH" bash -c '. "'"$BIN"'/lib/portable.sh"; _mtime x')" 222
+is "BSD stat -> _perm via -f %Lp" "$(PATH="$PD/bsd:$PATH" bash -c '. "'"$BIN"'/lib/portable.sh"; _perm x')" 750
+rm -rf "$PD"
+
 echo "TERMINAL DRIVER — auto-detection precedence + \$BRIEF_TERMINAL whitelist"
 LIB="$BIN/lib/terminal-driver.sh"
 # Source the live driver lib in a clean env with controlled terminal vars; echo
@@ -165,6 +179,22 @@ is "explicit override wins" "$(drv TMUX=x BRIEF_TERMINAL=kitty)" kitty
 is "traversal -> generic"   "$(drv BRIEF_TERMINAL=../evil)" generic
 is "slashes -> generic"     "$(drv BRIEF_TERMINAL=a/b)" generic
 is "unknown -> generic"     "$(drv BRIEF_TERMINAL=nope)" generic
+
+echo "TERMINAL DRIVER — pluggable drop-in detection (tdrv_detect / tdrv_priority)"
+# The extension point for porters: a third-party term/<name>.sh that defines
+# tdrv_detect() is auto-selected with NO edit to terminal-driver.sh. Built-ins are
+# matched first (precedence preserved); tdrv_priority breaks ties between drop-ins.
+DD=$(mktemp -d "${TMPDIR:-/tmp}/t-drop.XXXXXX")
+cp "$BIN/term/generic.sh" "$BIN/term/tmux.sh" "$DD/"     # generic = fallback; tmux = a built-in
+printf '%s' $'tdrv_name(){ printf foo; }\ntdrv_detect(){ [ -n "${FOO:-}" ]; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' > "$DD/foo.sh"
+printf '%s' $'tdrv_name(){ printf bar; }\ntdrv_detect(){ [ -n "${BAR:-}" ]; }\ntdrv_priority(){ printf 50; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' > "$DD/bar.sh"
+dpick(){ env -i HOME="$HOME" PATH="$PATH" BRIEF_TERM_DIR="$DD" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_name'; }
+is "drop-in self-detects (tdrv_detect)" "$(dpick FOO=1 BRIEF_TERMINAL=auto)" foo
+is "no drop-in claims -> generic"       "$(dpick BRIEF_TERMINAL=auto)" generic
+is "tdrv_priority breaks the tie"       "$(dpick FOO=1 BAR=1 BRIEF_TERMINAL=auto)" bar
+is "built-in beats a drop-in"           "$(dpick TMUX=x FOO=1 BRIEF_TERMINAL=auto)" tmux
+is "force a drop-in by name"            "$(dpick BRIEF_TERMINAL=foo)" foo
+rm -rf "$DD"
 
 echo "TERMINAL DRIVER — self_pane is filesystem-safe (no slash)"
 sp(){ env -i HOME="$HOME" PATH="$PATH" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_self_pane'; }

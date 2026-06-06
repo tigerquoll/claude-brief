@@ -10,6 +10,7 @@
 sid="$1"
 [ -z "$sid" ] && { echo "brief-view: no session id given"; exit 1; }
 case "$sid" in *[!0-9a-fA-F-]*) echo "brief-view: invalid (non-UUID) session id"; exit 1 ;; esac
+. "$HOME/.claude/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 
 state_dir="$HOME/.claude/state"
 brief="$state_dir/$sid.brief.md"
@@ -172,7 +173,7 @@ done
 intv_int=${LADDER[intv_idx]}; intv_label=$(fmt_int "$intv_int")
 refreshing=0; refresh_start=0; rtail_until=0
 SPIN=('|' '/' '-' '\'); spin=0; spinframe=""; last_spin=""   # in-flight spinner (rotating bar): leads the footer, animated while refreshing
-done_mt=$(stat -f %m "$donef" 2>/dev/null || echo 0)   # last-seen done-stamp mtime (outcome watcher)
+done_mt=$(_mtime "$donef")   # last-seen done-stamp mtime (outcome watcher)
 REFRESH_TIMEOUT=95   # viewer backstop for a stuck refresh (the worker's own 90s watchdog + margin)
 MSG_SECS=4           # how long a transient footer message lingers before reverting to the hint
 HELP_SECS=6          # how long the '?' cheatsheet shows
@@ -230,7 +231,7 @@ while :; do
       over=$(( total - maxrows )); [ "$over" -lt 0 ] && over=0
       more=""; [ "$over" -gt 0 ] && more=" · +${over} below"
       sk=$(cat "$skipf" 2>/dev/null); case "$sk" in ''|*[!0-9]*) sk=0 ;; esac
-      gen_epoch=$(stat -f %m "$brief" 2>/dev/null); [ -n "$gen_epoch" ] || gen_epoch=$EPOCHSECONDS
+      gen_epoch=$(_mtime "$brief"); [ "$gen_epoch" = 0 ] && gen_epoch=$EPOCHSECONDS
       footer_row=$(( (total < maxrows ? total : maxrows) + 1 ))   # content rows + the blank line
       agebucket $(( EPOCHSECONDS - gen_epoch )); last_age="$AGE"
       refreshing=0; spinframe=""; rtail="$HINT"; rtail_until=0   # fresh content shown => any in-flight refresh is done
@@ -247,7 +248,7 @@ while :; do
       # failure surfaces instead of masquerading as "no change". 'updated' means
       # the brief changed and the redraw above already showed it; 'no change' is
       # only worth announcing when WE asked for the refresh.
-      dm=$(stat -f %m "$donef" 2>/dev/null || echo 0)
+      dm=$(_mtime "$donef")
       if [ "$dm" != "$done_mt" ]; then
         done_mt=$dm; was_ours=$refreshing; refreshing=0; spinframe=""; last_intv=$EPOCHSECONDS   # any completed refresh (incl. UNCHANGED) resets the interval timer
         case "$(cat "$donef" 2>/dev/null)" in

@@ -18,6 +18,7 @@
 sid="$1"; tpath="$2"
 [ -z "$sid" ] && exit 0
 umask 077   # briefs/labels can contain sensitive session content -> create them private
+. "$HOME/.claude/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 
 state_dir="$HOME/.claude/state"
 mkdir -p "$state_dir"
@@ -133,7 +134,7 @@ Produce PART 1, then the ===BRIEF=== marker line, then PART 2."
 # relative / in-repo script) is ignored. Put a custom summariser in ~/.claude/bin/.
 summariser="$HOME/.claude/bin/brief-summarize.sh"
 if [ -n "$BRIEF_SUMMARIZER" ]; then
-  perm=$(stat -f %Lp "$BRIEF_SUMMARIZER" 2>/dev/null || echo 777)
+  perm=$(_perm "$BRIEF_SUMMARIZER")
   case "$BRIEF_SUMMARIZER" in
     *..*) ;;                                            # reject path-traversal escapes
     "$HOME"/.claude/*)
