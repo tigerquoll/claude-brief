@@ -98,6 +98,7 @@ elif [ "$avail" -lt 32 ]; then budget_note="This is a MEDIUM pane (~${avail} dis
 else                           budget_note="This is a ROOMY pane (~${avail} display lines): include all sections with full, concrete detail; use the space."
 fi
 
+# shellcheck disable=SC2016  # literal prompt text; $-sequences are intentional, not expansions
 sys='You maintain the live state of a coding session. Output TWO parts.
 
 PART 1 — a 2-line status label. Output EXACTLY two lines, lowercase keys, no markdown, no quotes, no trailing punctuation:

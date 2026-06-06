@@ -172,6 +172,7 @@ for i in "${!LADDER[@]}"; do
 done
 intv_int=${LADDER[intv_idx]}; intv_label=$(fmt_int "$intv_int")
 refreshing=0; refresh_start=0; rtail_until=0
+# shellcheck disable=SC1003  # '\' is a literal backslash spinner frame, not an escape
 SPIN=('|' '/' '-' '\'); spin=0; spinframe=""; last_spin=""   # in-flight spinner (rotating bar): leads the footer, animated while refreshing
 done_mt=$(_mtime "$donef")   # last-seen done-stamp mtime (outcome watcher)
 REFRESH_TIMEOUT=95   # viewer backstop for a stuck refresh (the worker's own 90s watchdog + margin)

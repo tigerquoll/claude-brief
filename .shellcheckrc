@@ -1,0 +1,17 @@
+# ShellCheck config for the brief-dock scripts.
+#   Run:  shellcheck -s bash claude/bin/*.sh claude/bin/lib/*.sh \
+#                       claude/bin/term/common/*.sh claude/bin/term/darwin/*.sh \
+#                       claude/hooks/*.sh install.sh sync.sh test.sh
+# These project-wide disables silence checks that are wrong or intentional for THIS
+# codebase; narrower one-offs use inline `# shellcheck disable=` with a reason.
+
+# Every script sources its helper libs by RUNTIME path ($HOME/.claude/bin/lib/*.sh),
+# and the driver layer sources the chosen driver dynamically (. "$_file"). ShellCheck
+# can't follow either statically — that's the design, not a bug.
+disable=SC1091  # "Not following: <sourced file> was not specified as input"
+disable=SC1090  # "Can't follow non-constant source. Use a directive..."
+
+# `ls -t … | head -1` is the portable way to get the newest file by mtime; find's
+# -printf is GNU-only and we go out of our way to stay BSD/GNU portable. The matched
+# names are UUIDs, so SC2012's non-alphanumeric-filename concern doesn't apply.
+disable=SC2012  # "Use find instead of ls..."

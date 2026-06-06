@@ -55,6 +55,7 @@ tdrv_open(){
   else
     {
       printf 'brief: wezterm dock could not open — is this a running WezTerm GUI with\n'
+      # shellcheck disable=SC2016  # $WEZTERM_UNIX_SOCKET is literal text in the hint
       printf '       its CLI reachable ($WEZTERM_UNIX_SOCKET)? No kitty/listen_on-style\n'
       printf '       setup is needed; the mux is on by default.\n'
       _msg=$(tr '\n' ' ' <"$_err" 2>/dev/null)

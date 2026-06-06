@@ -21,6 +21,7 @@ dname=${sess%% *}; did=${sess#* }
 [ "$dname" = "$did" ] && dname=iterm2                 # legacy single-token => iterm2
 case "$dname" in *[!a-z0-9]*) dname="" ;; esac        # only honour a clean driver name
 if [ -n "$dname" ] && [ -n "$did" ]; then
+  # shellcheck disable=SC2034  # BRIEF_TERMINAL is read by the sourced terminal-driver.sh
   ( BRIEF_TERMINAL="$dname"; . "$HOME/.claude/bin/lib/terminal-driver.sh"; tdrv_close "$did" ) &
 fi
 

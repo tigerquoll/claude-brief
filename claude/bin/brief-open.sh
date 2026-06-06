@@ -65,6 +65,7 @@ if [ -f "$sess_file" ]; then
   [ "$oldname" = "$oldid" ] && oldname=iterm2        # legacy single-token => iterm2
   case "$oldname" in *[!a-z0-9]*) oldname="" ;; esac  # only honour a clean driver name
   if [ -n "$oldname" ] && [ -n "$oldid" ]; then
+    # shellcheck disable=SC2034  # BRIEF_TERMINAL is read by the sourced terminal-driver.sh
     ( BRIEF_TERMINAL="$oldname"; . "$HOME/.claude/bin/lib/terminal-driver.sh"; tdrv_close "$oldid" )
   fi
 fi

@@ -105,10 +105,14 @@ end tell" 2>/dev/null)
       _i=0                       # kill the viewer, then wait for the tab to go idle
       while [ "$_i" -lt 15 ]; do
         # ONLY brief-view processes on this tty — never a process that merely
-        # inherited a recycled tty.
+        # inherited a recycled tty. (scoped ps|grep IS the safety contract here — a
+        # bare `pgrep -f brief-view.sh` isn't tty-scoped, so SC2009 doesn't apply.)
+        # shellcheck disable=SC2009
         _pids=$(ps -t "$_abbr" -o pid=,command= 2>/dev/null | grep -F 'brief-view.sh' | awk '{print $1}')
         if [ -n "$_pids" ]; then
-          kill $_pids 2>/dev/null
+          # one pid per line -> a read loop kills each regardless of the shell's
+          # word-splitting (bash splits unquoted $_pids, zsh does not) — matches ghostty.
+          printf '%s\n' "$_pids" | while IFS= read -r _p; do kill "$_p" 2>/dev/null; done
         else
           _b=$(osascript -e "tell application \"Terminal\"
   repeat with w in windows

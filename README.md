@@ -180,6 +180,9 @@ iterm2/DynamicProfiles/brief.json      (iterm2 dock profile: Default + 1.2x line
 - `./test.sh` — regression tests (run after install/sync). Drives the live
   `~/.claude` scripts with throwaway sessions + fake summarisers (no real model
   calls); exit status = number of failures.
+- **Lint:** the scripts are ShellCheck-clean. Run
+  `shellcheck -s bash claude/bin/*.sh claude/bin/lib/*.sh claude/bin/term/*/*.sh claude/hooks/*.sh install.sh sync.sh test.sh`
+  (config in `.shellcheckrc`; intentional patterns carry inline `# shellcheck` reasons).
 - **`~/.claude/settings.json` hook entries** (add by hand — settings.json is not
   committed, to avoid leaking config):
   ```
