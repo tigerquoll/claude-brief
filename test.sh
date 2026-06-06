@@ -192,6 +192,72 @@ is "close -> tdrv_close(FAKEID)" "$(grep -c '^close FAKEID' /tmp/t-term 2>/dev/n
 is "close clears session file"   "$([ -f "$ST/$S.brief.session" ] && echo kept || echo gone)" gone
 rm -f "$ST/panes/FP"
 
+echo "TERMINAL DRIVER — kitty routes kitty @ through \$KITTY_LISTEN_ON + injects PATH"
+# Hermetic: stub `kitty` on PATH so we can assert the driver's remote-control wiring
+# without a running kitty (kitty has no headless mode to test against). The no-tty
+# /brief context means a socket ($KITTY_LISTEN_ON) is mandatory + PATH must be passed.
+KDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-kitty.XXXXXX")
+printf '%s' $'#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> /tmp/t-kitty-args\ncase "$*" in *launch*) echo 42 ;; esac\n' > "$KDIR/kitty"
+chmod +x "$KDIR/kitty"
+(
+  export BRIEF_TERMINAL=kitty PATH="$KDIR:$PATH"
+  . "$LIB" >/dev/null 2>&1
+  rm -f /tmp/t-kitty-args
+  KITTY_LISTEN_ON="unix:/tmp/ksock" tdrv_open dock "" /v sid >/dev/null 2>&1
+  grep -q -- '@ --to unix:/tmp/ksock launch' /tmp/t-kitty-args && echo R_TO
+  grep -qF -- "--env PATH=$KDIR:" /tmp/t-kitty-args && echo R_ENV
+  rm -f /tmp/t-kitty-args
+  tdrv_open dock "" /v sid >/dev/null 2>&1                      # no socket -> bare kitty @ (tty path)
+  grep -q -- '--to' /tmp/t-kitty-args || echo R_NOTO
+  rm -f /tmp/t-kitty-args
+  KITTY_LISTEN_ON="unix:/tmp/ksock" tdrv_close 42 >/dev/null 2>&1
+  grep -q -- '@ --to unix:/tmp/ksock close-window --match id:42' /tmp/t-kitty-args && echo C_OK
+) > /tmp/t-kitty-res 2>/dev/null
+is "kitty routes via --to socket"       "$(grep -c '^R_TO$'   /tmp/t-kitty-res)" 1
+is "kitty injects --env PATH"           "$(grep -c '^R_ENV$'  /tmp/t-kitty-res)" 1
+is "kitty omits --to when no socket"    "$(grep -c '^R_NOTO$' /tmp/t-kitty-res)" 1
+is "kitty close routes via socket + id" "$(grep -c '^C_OK$'   /tmp/t-kitty-res)" 1
+rm -rf "$KDIR" /tmp/t-kitty-args /tmp/t-kitty-res
+
+echo "TERMINAL DRIVER — tmux real end-to-end (headless split + render + close)"
+# tmux is the one backend drivable without a GUI, so actually exercise it: spin up
+# a PRIVATE tmux server, run the live brief-open inside a pane, and assert the dock
+# splits, the viewer renders (proving the bash-5 viewer + glow ran in the new pane
+# via the inherited client PATH), and /brief close tears the pane down. Skips where
+# tmux is absent or can't spawn a pane (headless/sandboxed CI).
+if command -v tmux >/dev/null 2>&1; then
+  TSOCK="brieftest-$$"
+  tmx(){ tmux -L "$TSOCK" "$@"; }
+  napf(){ perl -e 'select(undef,undef,undef,0.4)'; }     # 0.4s sub-second nap
+  tmx new-session -d -s s -x 200 -y 50 2>/dev/null
+  if tmx list-panes -t s >/dev/null 2>&1; then
+    wipe
+    printf '# tmux e2e\n\n## State\nrendering inside a real split\n\n## Next / Open\n- close cleanly\n' > "$ST/$S.brief.md"
+    mp=$(tmx list-panes -t s -F '#{pane_id}' | head -1)
+    mkdir -p "$ST/panes"; printf '%s\n' "$S" > "$ST/panes/$mp"   # $TMUX_PANE inside the pane == $mp -> resolves to $S
+    tmx send-keys -t "$mp" "'$BIN/brief-open.sh' dock >/tmp/t-tmux 2>&1" Enter
+    dock=""; i=0
+    while [ "$i" -lt 15 ]; do napf; dock=$(tmx list-panes -t s -F '#{pane_id} #{pane_active}' 2>/dev/null | awk '$2==0{print $1}' | head -1); [ -n "$dock" ] && break; i=$((i+1)); done
+    is "tmux dock pane created"     "$([ -n "$dock" ] && echo yes || echo no)" yes
+    is "session file = tmux <pane>" "$(cat "$ST/$S.brief.session" 2>/dev/null)" "tmux $dock"
+    render=""; i=0
+    while [ "$i" -lt 15 ]; do napf; render=$(tmx capture-pane -p -t "$dock" 2>/dev/null); printf '%s' "$render" | grep -q 'tmux e2e' && break; i=$((i+1)); done
+    is "viewer rendered the brief"  "$([ "$(printf '%s' "$render" | grep -c 'tmux e2e')" -ge 1 ] && echo yes || echo no)" yes
+    is "viewer footer (bash5+glow)" "$([ "$(printf '%s' "$render" | grep -c generated)" -ge 1 ] && echo yes || echo no)" yes
+    tmx send-keys -t "$mp" "'$BIN/brief-open.sh' close >>/tmp/t-tmux 2>&1" Enter
+    gone=no; i=0
+    while [ "$i" -lt 15 ]; do napf; tmx list-panes -t s -F '#{pane_id}' 2>/dev/null | grep -qx "$dock" || { gone=yes; break; }; i=$((i+1)); done
+    is "tmux close removed the pane" "$gone" yes
+    is "close cleared session file"  "$([ -f "$ST/$S.brief.session" ] && echo kept || echo gone)" gone
+    rm -f "$ST/panes/$mp"
+  else
+    printf '  \033[33mskip\033[0m tmux cannot spawn a pane here (headless/sandboxed)\n'
+  fi
+  tmx kill-server 2>/dev/null
+else
+  printf '  \033[33mskip\033[0m tmux not installed\n'
+fi
+
 echo
 printf 'RESULT: %d passed, %d failed\n' "$pass" "$fail"
 exit "$fail"

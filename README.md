@@ -45,7 +45,10 @@ are auto-detected, with a generic fallback for anything else.
   AppleScript dictionary (a real in-window split, like iTerm2) and needs a one-time
   macOS Automation approval on first `/brief`; **Apple Terminal** has no scriptable
   split panes, so its dock is a companion window positioned beside the main one;
-  **kitty** needs `allow_remote_control yes` plus the `splits` layout; unknown
+  **kitty** needs SOCKET remote control — `allow_remote_control yes` **and**
+  `listen_on unix:/tmp/kitty` in kitty.conf, then a restart — because /brief runs
+  with no controlling tty, so a tty-only setup can't be reached (add the `splits`
+  layout for a side-by-side dock); unknown
   terminals fall back to **generic**, which just prints the `brief-view.sh <sid>`
   command for you to run in a split you make yourself.
 - **Dock styling (`brief` profile = your profile + 1.2× line spacing).** iTerm2
@@ -53,9 +56,13 @@ are auto-detected, with a generic fallback for anything else.
   profile *live*). Apple Terminal generates one at install via
   `bin/brief-term-profile.sh` — from the profile you install *from* — and imports
   it once (Terminal can't inherit or auto-load, so it's a snapshot; re-run the
-  helper to refresh). tmux/kitty/ghostty just inherit their own theme (ghostty's
-  scripting exposes font size but no line-spacing, so it can't get a 1.2× `brief`
-  profile). `$BRIEF_PROFILE` overrides the name (iTerm2/Apple Terminal);
+  helper to refresh). tmux/kitty/ghostty get no dedicated `brief` profile.
+  **This is the tmux driver's main disadvantage:** tmux has no per-pane font
+  control — every pane shares the host terminal's one font — so the dock can't have
+  a different font size or line spacing from your session; you get whatever the host
+  terminal uses. (ghostty's scripting exposes font size but no line-spacing, and
+  kitty's font is global, so neither gets the 1.2× `brief` spacing either.)
+  `$BRIEF_PROFILE` overrides the name (iTerm2/Apple Terminal);
   `$BRIEF_FONT_BUMP=N` (Apple Terminal) also enlarges the font.
   - **Unfocused-pane dimming** is a global app setting, not a dock profile, so you
     set it once yourself: on **iTerm2** uncheck Settings ▸ Appearance ▸ Dimming ▸
@@ -108,8 +115,14 @@ coreutils needed) · the `claude` CLI. Plus **one terminal backend**:
   in-window split; first run needs a one-time Automation approval
 - **Apple Terminal** (macOS) — `osascript`; companion window, no splits; first run
   needs a one-time Automation approval
-- **tmux** (macOS/Linux)
-- **kitty** (macOS/Linux) — set `allow_remote_control yes` + the `splits` layout
+- **tmux** (macOS/Linux) — real split via `split-window`, inside any host terminal
+  (incl. Apple Terminal). Wins auto-detection when `$TMUX` is set. Main tradeoff:
+  no dock-specific font — tmux has no per-pane font control, so the dock can't have
+  a different font size / line spacing from the session (it just uses the host
+  terminal's font). Covered by a real headless end-to-end check in `test.sh`.
+- **kitty** (macOS/Linux) — needs socket remote control in kitty.conf + a restart:
+  `allow_remote_control yes`, `listen_on unix:/tmp/kitty` (required — /brief has no
+  controlling tty), and `enabled_layouts splits,stack` for a side-by-side dock
 
 Optional: `glow` (`brew install glow`, recommended) or `bat` for nicer rendering.
 `./install.sh --check` reports which backends are available and the one

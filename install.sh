@@ -47,7 +47,7 @@ check_deps() {
     printf '  \xe2\x9c\x93 %-10s %s (driver: tmux)\n' tmux "$(command -v tmux)"; have_term=1
   fi
   if command -v kitty >/dev/null 2>&1; then
-    printf '  \xe2\x9c\x93 %-10s %s (driver: kitty — needs allow_remote_control + splits layout)\n' kitty "$(command -v kitty)"; have_term=1
+    printf '  \xe2\x9c\x93 %-10s %s (driver: kitty — needs socket remote control: allow_remote_control + listen_on + restart)\n' kitty "$(command -v kitty)"; have_term=1
   fi
   if [ -d /Applications/Ghostty.app ] || [ -d "$HOME/Applications/Ghostty.app" ]; then
     printf '  \xe2\x9c\x93 %-10s installed (driver: ghostty — AppleScript splits; one-time Automation approval)\n' Ghostty; have_term=1
