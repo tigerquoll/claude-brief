@@ -12,6 +12,7 @@
 # enough in the tty-less /brief context. Sourced by terminal-driver.sh — bash-3.2-safe.
 
 tdrv_name(){ printf 'kitty'; }
+tdrv_detect(){ [ -n "${KITTY_WINDOW_ID:-}" ]; }   # kitty exports this into every window
 
 tdrv_self_pane(){ printf '%s' "${KITTY_WINDOW_ID:-}"; }   # per-window integer id
 

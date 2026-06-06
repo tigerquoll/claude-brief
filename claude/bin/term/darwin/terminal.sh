@@ -17,6 +17,7 @@
 #     and we close by ITERATING windows rather than by `whose id`.
 
 tdrv_name(){ printf 'terminal'; }
+tdrv_detect(){ [ "${TERM_PROGRAM:-}" = Apple_Terminal ]; }
 
 # $TERM_SESSION_ID is `wXtYpZ:UUID` (or a bare UUID on some builds); the wXtYpZ
 # prefix is positional/unstable, the UUID is the stable token. Hex+dash only.

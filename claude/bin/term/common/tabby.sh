@@ -15,6 +15,7 @@
 # like `generic` (prints the `brief-view.sh <sid>` line + exits 0). Sourced — 3.2-safe.
 
 tdrv_name(){ printf 'tabby'; }
+tdrv_detect(){ [ "${TERM_PROGRAM:-}" = Tabby ] || [ -n "${TABBY_CONFIG_DIRECTORY:-}" ]; }
 
 # No per-pane/-tab env id (Tabby sets only the app-global $TABBY_CONFIG_DIRECTORY),
 # so there's no stable self id — brief-open falls back to the cwd->sid map (which the

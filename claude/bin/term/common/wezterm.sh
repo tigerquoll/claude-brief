@@ -17,6 +17,7 @@
 # as tmux/kitty/ghostty; $BRIEF_PROFILE does not apply.
 
 tdrv_name(){ printf 'wezterm'; }
+tdrv_detect(){ [ "${TERM_PROGRAM:-}" = WezTerm ] || [ -n "${WEZTERM_PANE:-}" ]; }
 
 # $WEZTERM_PANE is the current pane's integer id, exported per-pane by WezTerm — so
 # the prompt hook (which runs inside the session's pane) and /brief's bash compute

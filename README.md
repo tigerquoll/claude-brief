@@ -41,16 +41,17 @@ Terminal are auto-detected, with a generic fallback for anything else.
   close on exit) lives behind a tiny **driver** contract — `bin/lib/terminal-driver.sh`
   resolves a driver name to `bin/term/<os>/<name>.sh` (OS-specific, e.g. `darwin/`) or
   `bin/term/common/<name>.sh` (cross-platform), `<os>/` winning. The backend is
-  auto-detected (inner multiplexer wins: tmux beats the host terminal); force one with
-  `BRIEF_TERMINAL=<name>` (a name, never a path). **Porting / custom terminals:** the
-  core is OS-portable (file times/perms go through `bin/lib/portable.sh`, which handles
-  BSD *and* GNU `stat`), and **macOS and Linux drivers ship side-by-side without
-  interfering** — a macOS-only driver lives in `term/darwin/` and is simply not on
-  Linux's search path (`term/linux/` + `term/common/`), so it's never even sourced
-  there; no per-driver OS guard needed. A new driver auto-detects with **no edit to the
-  core** — drop a `term/common/<name>.sh` (or `term/<os>/<name>.sh`) implementing the
-  four `tdrv_*` functions plus a `tdrv_detect()` (return 0 when it recognises the
-  terminal; the first match wins). Notes: **WezTerm** is the easy
+  force one with `BRIEF_TERMINAL=<name>` (a name, never a path). **Detection lives in
+  the drivers:** each implements `tdrv_detect()` (return 0 if it recognises the current
+  terminal) and the lib just probes them — the highest-`tdrv_rank` match wins (default
+  50; tmux uses 90 so the inner multiplexer beats the host terminal). **Porting / custom
+  terminals:** the core is OS-portable (file times/perms go through `bin/lib/portable.sh`,
+  which handles BSD *and* GNU `stat`), and **macOS and Linux drivers ship side-by-side
+  without interfering** — a macOS-only driver lives in `term/darwin/` and is simply not
+  on Linux's search path (`term/linux/` + `term/common/`), so it's never even sourced
+  there; no per-driver OS guard needed. A new terminal auto-detects with **no edit to
+  the core** — drop a `term/common/<name>.sh` (or `term/<os>/<name>.sh`) implementing
+  the five `tdrv_*` functions (`tdrv_detect` included). Notes: **WezTerm** is the easy
   case — `wezterm cli` reaches the always-on multiplexer over a unix socket
   (`$WEZTERM_UNIX_SOCKET`, exported into every pane), so a real in-window split works
   with **no config and no tty** (the dock split refocuses the session pane so your

@@ -5,6 +5,7 @@
 # Sourced by terminal-driver.sh — keep bash-3.2-safe.
 
 tdrv_name(){ printf 'iterm2'; }
+tdrv_detect(){ [ "${TERM_PROGRAM:-}" = iTerm.app ] || [ -n "${ITERM_SESSION_ID:-}" ]; }
 
 # Pane UUID = the part after the colon in $ITERM_SESSION_ID, hex+dash only. Used
 # both as the pane→sid map key and as the split anchor (matches `id of session`).

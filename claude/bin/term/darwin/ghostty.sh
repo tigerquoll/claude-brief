@@ -25,6 +25,9 @@
 # time, tdrv_open encodes the pane id as "<terminal-uuid>:<sid>".
 
 tdrv_name(){ printf 'ghostty'; }
+# Only reached on macOS (this driver lives in term/darwin/), so a Linux+ghostty
+# session never matches it — it falls through to generic until a linux/ driver exists.
+tdrv_detect(){ [ "${TERM_PROGRAM:-}" = ghostty ] || [ -n "${GHOSTTY_RESOURCES_DIR:-}" ]; }
 
 # Per-pane id = the focused terminal's AppleScript UUID (hex+dash). Empty on any
 # error (no Ghostty / not authorized yet) -> brief-open falls back to cwd.

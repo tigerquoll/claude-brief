@@ -11,6 +11,12 @@
 
 tdrv_name(){ printf 'tmux'; }
 
+# $TMUX is set inside any tmux client. rank 90 (> the default 50) so that inside a
+# tmux pane — where the host terminal's env vars are ALSO visible — tmux wins: the
+# inner multiplexer is what actually owns the panes.
+tdrv_detect(){ [ -n "${TMUX:-}" ]; }
+tdrv_rank(){ printf 90; }
+
 # $TMUX_PANE is the current pane id (form %N) — fs-safe and usable as a -t anchor.
 # Set per-pane by tmux, so the prompt hook (which runs inside the session's pane)
 # and /brief's bash compute the same pane->sid map key.

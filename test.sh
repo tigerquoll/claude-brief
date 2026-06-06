@@ -180,18 +180,21 @@ is "traversal -> generic"   "$(drv BRIEF_TERMINAL=../evil)" generic
 is "slashes -> generic"     "$(drv BRIEF_TERMINAL=a/b)" generic
 is "unknown -> generic"     "$(drv BRIEF_TERMINAL=nope)" generic
 
-echo "TERMINAL DRIVER — pluggable drop-in detection (tdrv_detect)"
-# The extension point for porters: a term/common/ (or term/<os>/) driver that defines
-# tdrv_detect() is auto-selected with NO edit to terminal-driver.sh. Built-ins are
-# matched first; the first drop-in whose tdrv_detect succeeds wins.
+echo "TERMINAL DRIVER — unified detection: a drop-in driver is just another tdrv_detect"
+# Detection lives in the drivers; the lib only probes tdrv_detect + tdrv_rank. A
+# third-party driver auto-selects with NO edit to terminal-driver.sh, on equal footing
+# with built-ins — the highest tdrv_rank match wins (tmux's 90 > a default 50).
 DD=$(mktemp -d "${TMPDIR:-/tmp}/t-drop.XXXXXX"); mkdir -p "$DD/common"
 cp "$BIN/term/common/generic.sh" "$BIN/term/common/tmux.sh" "$DD/common/"
 printf '%s' $'tdrv_name(){ printf foo; }\ntdrv_detect(){ [ -n "${FOO:-}" ]; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' > "$DD/common/foo.sh"
+# a high-rank drop-in beats even tmux's mux rank -> proves rank, not built-in-ness, decides
+printf '%s' $'tdrv_name(){ printf vip; }\ntdrv_detect(){ [ -n "${VIP:-}" ]; }\ntdrv_rank(){ printf 99; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' > "$DD/common/vip.sh"
 dpick(){ env -i HOME="$HOME" PATH="$PATH" BRIEF_TERM_DIR="$DD" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_name'; }
 is "drop-in self-detects (tdrv_detect)" "$(dpick FOO=1 BRIEF_TERMINAL=auto)" foo
-is "no drop-in claims -> generic"       "$(dpick BRIEF_TERMINAL=auto)" generic
-is "built-in beats a drop-in"           "$(dpick TMUX=x FOO=1 BRIEF_TERMINAL=auto)" tmux
-is "force a drop-in by name"            "$(dpick BRIEF_TERMINAL=foo)" foo
+is "no driver claims -> generic"        "$(dpick BRIEF_TERMINAL=auto)" generic
+is "tmux rank (90) beats default drop-in" "$(dpick TMUX=x FOO=1 BRIEF_TERMINAL=auto)" tmux
+is "higher-rank drop-in beats tmux"     "$(dpick TMUX=x VIP=1 BRIEF_TERMINAL=auto)" vip
+is "force a driver by name"             "$(dpick BRIEF_TERMINAL=foo)" foo
 rm -rf "$DD"
 
 echo "TERMINAL DRIVER — OS-bucketed layout (term/<os>/ over term/common/, no cross-OS leak)"
