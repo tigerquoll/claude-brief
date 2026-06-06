@@ -39,7 +39,7 @@ Terminal are auto-detected, with a generic fallback for anything else.
   which session it's in.
 - **Pluggable terminal backend.** The windowing (split the pane, run the viewer,
   close on exit) lives behind a tiny **driver** contract — `bin/lib/terminal-driver.sh`
-  sources one of `bin/term/{iterm2,tmux,kitty,wezterm,ghostty,terminal,generic}.sh`. The
+  sources one of `bin/term/{iterm2,tmux,kitty,wezterm,ghostty,terminal,tabby,generic}.sh`. The
   backend is auto-detected (inner multiplexer wins: tmux beats the host terminal); force one
   with `BRIEF_TERMINAL=<name>` (a name, never a path). Notes: **WezTerm** is the easy
   case — `wezterm cli` reaches the always-on multiplexer over a unix socket
@@ -54,7 +54,10 @@ Terminal are auto-detected, with a generic fallback for anything else.
   **kitty** needs SOCKET remote control — `allow_remote_control yes` **and**
   `listen_on unix:/tmp/kitty` in kitty.conf, then a restart — because /brief runs
   with no controlling tty, so a tty-only setup can't be reached (add the `splits`
-  layout for a side-by-side dock); unknown
+  layout for a side-by-side dock); **Tabby** is *recognized but can't be auto-docked*
+  — it has no scriptable split, its CLI only opens new tabs (no id, no close), and it
+  ships no AppleScript, so the driver prints Tabby-specific instructions to split by
+  hand and run the viewer; unknown
   terminals fall back to **generic**, which just prints the `brief-view.sh <sid>`
   command for you to run in a split you make yourself.
 - **Dock styling (`brief` profile = your profile + 1.2× line spacing).** iTerm2
@@ -108,7 +111,7 @@ Terminal are auto-detected, with a generic fallback for anything else.
 claude/hooks/      task-prompt-hook.sh task-summary-hook.sh task-summary-worker.sh session-end-hook.sh
 claude/bin/        brief-open.sh brief-view.sh brief-prune.sh brief-summarize.sh brief-summarize-api.sh brief-term-profile.sh
 claude/bin/lib/    terminal-driver.sh                     (sourced: detect + dispatch)
-claude/bin/term/   iterm2.sh tmux.sh kitty.sh wezterm.sh ghostty.sh terminal.sh generic.sh   (terminal drivers)
+claude/bin/term/   iterm2.sh tmux.sh kitty.sh wezterm.sh ghostty.sh terminal.sh tabby.sh generic.sh   (terminal drivers)
 claude/commands/   brief.md
 claude/glow-brief.json
 iterm2/DynamicProfiles/brief.json      (iterm2 dock profile: Default + 1.2x line spacing)
@@ -152,6 +155,11 @@ coreutils needed) · the `claude` CLI. Plus **one terminal backend**:
   needed** (the mux is always on and reachable over `$WEZTERM_UNIX_SOCKET` without a
   tty). The dock split refocuses your session pane. Covered by a hermetic wiring test
   plus a live GUI end-to-end check in `test.sh`.
+- **Tabby** (macOS/Linux/Windows) — *manual dock only.* Tabby exposes no scriptable
+  split, no targetable/closable CLI (its CLI opens tabs with no id), and no
+  AppleScript — so `/brief` can't auto-dock; it prints the split-it-yourself
+  instructions and the `brief-view.sh <sid>` command to run. A true dock would need
+  a Tabby plugin. Detected via `$TERM_PROGRAM=Tabby`.
 
 Optional: `glow` (`brew install glow`, recommended) or `bat` for nicer rendering.
 `./install.sh --check` reports which backends are available and the one

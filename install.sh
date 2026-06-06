@@ -56,6 +56,9 @@ check_deps() {
   if [ -d /Applications/Ghostty.app ] || [ -d "$HOME/Applications/Ghostty.app" ]; then
     printf '  \xe2\x9c\x93 %-10s installed (driver: ghostty — AppleScript splits; one-time Automation approval)\n' Ghostty; have_term=1
   fi
+  if [ -d /Applications/Tabby.app ] || [ -d "$HOME/Applications/Tabby.app" ] || command -v tabby >/dev/null 2>&1; then
+    printf '  ~ %-10s installed (driver: tabby — MANUAL dock only: no scriptable split/remote-control)\n' Tabby
+  fi
   if [ "$(uname -s)" = Darwin ]; then
     printf '  \xe2\x9c\x93 %-10s available (driver: terminal — companion window, no splits)\n' Terminal.app; have_term=1
   fi
