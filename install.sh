@@ -66,16 +66,15 @@ check_deps() {
   # Which driver auto-detection picks in THIS terminal right now (also smoke-tests
   # the driver library against the repo's drivers).
   if [ -f "$root/claude/bin/lib/terminal-driver.sh" ]; then
-    local d; d=$( BRIEF_TERM_DIR="$root/claude/bin/term"; . "$root/claude/bin/lib/terminal-driver.sh" >/dev/null 2>&1; tdrv_name 2>/dev/null )
+    local d; d=$( export BRIEF_TERM_DIR="$root/claude/bin/term"; . "$root/claude/bin/lib/terminal-driver.sh" >/dev/null 2>&1; tdrv_name 2>/dev/null )
     [ -n "$d" ] && printf '  \xe2\x86\x92 active driver here: %s\n' "$d"
   fi
 
-  # Required external commands (cmd:install-hint).
+  # Required external commands (cmd:install-hint) — needed on EVERY platform.
   for entry in \
     "jq:brew install jq" \
     "claude:Claude Code CLI — install per your usual method" \
-    "perl:preinstalled on macOS — check your PATH (used for the summarizer watchdog + rendering)" \
-    "osascript:macOS built-in — are you on macOS?"
+    "perl:preinstalled on macOS — check your PATH (used for the summarizer watchdog + rendering)"
   do
     cmd=${entry%%:*}; hint=${entry#*:}
     if command -v "$cmd" >/dev/null 2>&1; then
@@ -85,6 +84,17 @@ check_deps() {
       missing=1
     fi
   done
+
+  # osascript is a macOS built-in used ONLY by the AppleScript drivers
+  # (iterm2/ghostty/terminal) + the Apple Terminal profile — irrelevant on Linux, so
+  # it is NEVER required (tmux/kitty/wezterm need none of it); just reported on macOS.
+  if [ "$(uname -s)" = Darwin ]; then
+    if command -v osascript >/dev/null 2>&1; then
+      printf '  \xe2\x9c\x93 %-10s %s\n' osascript "$(command -v osascript)"
+    else
+      printf '  ~ %-10s not found — the iTerm2/ghostty/Apple-Terminal drivers need it\n' osascript
+    fi
+  fi
 
   # Optional renderer: glow preferred, bat fallback, else plain-text styling.
   if command -v glow >/dev/null 2>&1; then

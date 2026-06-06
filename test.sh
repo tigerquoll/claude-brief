@@ -11,6 +11,7 @@
 # marked "MIRROR" — keep them in sync with the source if that logic changes.
 # Safe to re-run; cleans up its own sids/fakes. Exit status = number of failures.
 set -u
+ROOT="$(cd "$(dirname "$0")" && pwd)"   # repo root (for the repo's install.sh)
 H="$HOME/.claude"; HOOKS="$H/hooks"; BIN="$H/bin"; ST="$H/state"; TP=/nonexistent.jsonl
 W="$HOOKS/task-summary-worker.sh"
 pass=0; fail=0
@@ -516,6 +517,24 @@ if command -v tmux >/dev/null 2>&1; then
 else
   printf '  \033[33mskip\033[0m tmux not installed\n'
 fi
+
+echo "INSTALL — dependency check is OS-aware (no osascript false-fail on Linux)"
+# install.sh must not treat osascript (a macOS built-in needed only by the AppleScript
+# drivers) as REQUIRED — else `./install.sh` exits non-zero on Linux even with a
+# working tmux/kitty/wezterm backend. Stub `uname` to fake each OS and assert exit 0
+# (the required deps jq/claude/perl/bash5 are present on this host).
+UD=$(mktemp -d "${TMPDIR:-/tmp}/t-uname.XXXXXX")
+printf '%s' $'#!/usr/bin/env bash\necho Linux\n'  > "$UD/uname-lin"
+printf '%s' $'#!/usr/bin/env bash\necho Darwin\n' > "$UD/uname-dar"
+mkdir -p "$UD/lin" "$UD/dar"; ln -s "$UD/uname-lin" "$UD/lin/uname"; ln -s "$UD/uname-dar" "$UD/dar/uname"
+chmod +x "$UD/uname-lin" "$UD/uname-dar"
+PATH="$UD/lin:$PATH" "$ROOT/install.sh" --check >/dev/null 2>&1; lin=$?
+PATH="$UD/dar:$PATH" "$ROOT/install.sh" --check >/dev/null 2>&1; dar=$?
+osa=$(PATH="$UD/lin:$PATH" "$ROOT/install.sh" --check 2>&1 | grep -c osascript)
+is "install --check exits 0 on Linux"   "$lin" 0
+is "install --check exits 0 on macOS"   "$dar" 0
+is "osascript not checked on Linux"     "$osa" 0
+rm -rf "$UD"
 
 echo
 printf 'RESULT: %d passed, %d failed\n' "$pass" "$fail"
