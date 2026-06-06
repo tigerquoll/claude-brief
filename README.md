@@ -61,15 +61,19 @@ are auto-detected, with a generic fallback for anything else.
   control — every pane shares the host terminal's one font — so the dock can't have
   a different font size or line spacing from your session; you get whatever the host
   terminal uses. (ghostty's scripting exposes font size but no line-spacing, and
-  kitty's font is global, so neither gets the 1.2× `brief` spacing either.)
+  kitty's font metrics are global, so neither gets a *dock-scoped* 1.2× `brief`
+  spacing — though both can widen spacing globally; see below.)
   `$BRIEF_PROFILE` overrides the name (iTerm2/Apple Terminal);
   `$BRIEF_FONT_BUMP=N` (Apple Terminal) also enlarges the font.
   - **Unfocused-pane dimming** is a global app setting, not a dock profile, so you
     set it once yourself: on **iTerm2** uncheck Settings ▸ Appearance ▸ Dimming ▸
     *Dim inactive split panes* (otherwise the dock fades while you're typing in the
     session pane); on **ghostty** add `unfocused-split-opacity = 1` to
-    `~/.config/ghostty/config` (plus `adjust-cell-height = 20%` for ~1.2× spacing).
-    These are global — neither terminal can scope them to just the dock.
+    `~/.config/ghostty/config` (plus `adjust-cell-height = 20%` for ~1.2× spacing);
+    on **kitty** add `modify_font cell_height 120%` to `~/.config/kitty/kitty.conf`
+    for ~1.2× spacing (the modern directive — replaces the old `adjust_line_height`;
+    reload with ctrl+shift+f5). These are global — none of these terminals can
+    scope them to just the dock.
 - The viewer renders the brief with `glow` + a perl post-processor (gutter, indent
   hierarchy, dimmed bullets) on the terminal alt-screen, height-clipped (top-anchored).
 - A **`SessionEnd`** hook closes the dock when a session ends **and deletes that
