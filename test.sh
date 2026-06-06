@@ -149,6 +149,9 @@ LIB="$BIN/lib/terminal-driver.sh"
 drv(){ env -i HOME="$HOME" PATH="$PATH" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_name'; }
 is "tmux wins over iterm2"   "$(drv TMUX=x ITERM_SESSION_ID=w:abc BRIEF_TERMINAL=auto)" tmux
 is "kitty detected"         "$(drv KITTY_WINDOW_ID=3 BRIEF_TERMINAL=auto)" kitty
+is "wezterm via TERM_PROGRAM" "$(drv TERM_PROGRAM=WezTerm BRIEF_TERMINAL=auto)" wezterm
+is "wezterm via WEZTERM_PANE" "$(drv WEZTERM_PANE=0 BRIEF_TERMINAL=auto)" wezterm
+is "tmux wins over wezterm"  "$(drv TMUX=x WEZTERM_PANE=0 BRIEF_TERMINAL=auto)" tmux
 is "ghostty via TERM_PROGRAM" "$(drv TERM_PROGRAM=ghostty BRIEF_TERMINAL=auto)" ghostty
 is "ghostty via GHOSTTY env"  "$(drv GHOSTTY_RESOURCES_DIR=/x BRIEF_TERMINAL=auto)" ghostty
 is "tmux wins over ghostty"  "$(drv TMUX=x TERM_PROGRAM=ghostty BRIEF_TERMINAL=auto)" tmux
@@ -164,6 +167,7 @@ echo "TERMINAL DRIVER — self_pane is filesystem-safe (no slash)"
 sp(){ env -i HOME="$HOME" PATH="$PATH" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_self_pane'; }
 is "tmux self id"        "$(sp TMUX=x TMUX_PANE=%7 BRIEF_TERMINAL=tmux)" "%7"
 is "kitty self id"       "$(sp KITTY_WINDOW_ID=42 BRIEF_TERMINAL=kitty)" "42"
+is "wezterm self id"     "$(sp WEZTERM_PANE=3 BRIEF_TERMINAL=wezterm)" "3"
 is "iterm2 self hex-only" "$(sp ITERM_SESSION_ID='w0t0p0:AB/../CD' BRIEF_TERMINAL=iterm2)" "ABCD"
 
 echo "TERMINAL DRIVER — .brief.session parse (MIRROR of brief-open/session-end)"
@@ -218,6 +222,66 @@ is "kitty injects --env PATH"           "$(grep -c '^R_ENV$'  /tmp/t-kitty-res)"
 is "kitty omits --to when no socket"    "$(grep -c '^R_NOTO$' /tmp/t-kitty-res)" 1
 is "kitty close routes via socket + id" "$(grep -c '^C_OK$'   /tmp/t-kitty-res)" 1
 rm -rf "$KDIR" /tmp/t-kitty-args /tmp/t-kitty-res
+
+echo "TERMINAL DRIVER — wezterm routes wezterm cli (split/spawn/kill) + injects PATH + refocuses"
+# Hermetic: stub `wezterm` on PATH to assert the CLI wiring without a running GUI.
+# wezterm cli needs NO tty/socket setup (the easy case vs kitty), but a GUI-launched
+# mux can have a minimal PATH, so the driver wraps CMD in /usr/bin/env PATH=… and
+# (since split/spawn grab focus) activate-panes back to the anchor.
+WZDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-wez.XXXXXX")
+printf '%s' $'#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> /tmp/t-wez-args\ncase "$*" in *split-pane*|*spawn*) echo 7 ;; esac\n' > "$WZDIR/wezterm"
+chmod +x "$WZDIR/wezterm"
+(
+  export BRIEF_TERMINAL=wezterm PATH="$WZDIR:$PATH"
+  . "$LIB" >/dev/null 2>&1
+  rm -f /tmp/t-wez-args
+  tdrv_open dock 0 /v sid >/dev/null 2>&1
+  grep -q -- 'cli split-pane --right --pane-id 0' /tmp/t-wez-args && echo R_SPLIT
+  grep -qF -- "-- /usr/bin/env PATH=$WZDIR:" /tmp/t-wez-args && echo R_ENV
+  grep -q -- 'cli activate-pane --pane-id 0' /tmp/t-wez-args && echo R_FOCUS
+  rm -f /tmp/t-wez-args
+  tdrv_open float 0 /v sid >/dev/null 2>&1
+  grep -q -- 'cli spawn --new-window' /tmp/t-wez-args && echo R_FLOAT
+  rm -f /tmp/t-wez-args
+  tdrv_close 7 >/dev/null 2>&1
+  grep -q -- 'cli kill-pane --pane-id 7' /tmp/t-wez-args && echo C_OK
+) > /tmp/t-wez-res 2>/dev/null
+is "wezterm dock = split-pane --right --pane-id" "$(grep -c '^R_SPLIT$' /tmp/t-wez-res)" 1
+is "wezterm injects /usr/bin/env PATH"           "$(grep -c '^R_ENV$'   /tmp/t-wez-res)" 1
+is "wezterm refocuses the anchor pane"           "$(grep -c '^R_FOCUS$' /tmp/t-wez-res)" 1
+is "wezterm float = spawn --new-window"          "$(grep -c '^R_FLOAT$' /tmp/t-wez-res)" 1
+is "wezterm close = kill-pane --pane-id"         "$(grep -c '^C_OK$'    /tmp/t-wez-res)" 1
+rm -rf "$WZDIR" /tmp/t-wez-args /tmp/t-wez-res
+
+echo "TERMINAL DRIVER — wezterm real end-to-end (live GUI split + render + close)"
+# Like the tmux e2e but for WezTerm: only runs when invoked INSIDE a reachable
+# WezTerm GUI (so it skips in CI / other terminals). Proves the bash-5 viewer + glow
+# ran in the new pane (via the /usr/bin/env PATH wrap) and that focus returns to the
+# session. If the open yields no pane id (e.g. a sandbox blocked it) it skips, not fails.
+if command -v wezterm >/dev/null 2>&1 && [ -n "${WEZTERM_PANE:-}" ] && wezterm cli list >/dev/null 2>&1; then
+  napw(){ perl -e 'select(undef,undef,undef,0.5)'; }
+  wipe
+  printf '# wezterm e2e\n\n## State\nrendering in a real WezTerm split\n\n## Next / Open\n- close cleanly\n' > "$ST/$S.brief.md"
+  ( export BRIEF_TERMINAL=wezterm; . "$LIB" >/dev/null 2>&1
+    a=$(tdrv_self_pane); n=$(tdrv_open dock "$a" "$BIN/brief-view.sh" "$S")
+    printf '%s %s\n' "$n" "$a" > /tmp/t-wez-ids )
+  read n a < /tmp/t-wez-ids 2>/dev/null
+  if [ -n "$n" ]; then
+    render=""; i=0
+    while [ "$i" -lt 12 ]; do napw; render=$(wezterm cli get-text --pane-id "$n" 2>/dev/null); printf '%s' "$render" | grep -q 'wezterm e2e' && break; i=$((i+1)); done
+    is "wezterm viewer rendered the brief"  "$([ "$(printf '%s' "$render" | grep -c 'wezterm e2e')" -ge 1 ] && echo yes || echo no)" yes
+    is "wezterm focus back on session pane" "$(wezterm cli list-clients 2>/dev/null | awk 'NR==2{print $NF}')" "$a"
+    ( export BRIEF_TERMINAL=wezterm; . "$LIB" >/dev/null 2>&1; tdrv_close "$n" )
+    napw
+    gone=yes; wezterm cli list 2>/dev/null | awk -v p="$n" '$3==p{f=1} END{exit !f}' && gone=no
+    is "wezterm close removed the pane"     "$gone" yes
+  else
+    printf '  \033[33mskip\033[0m wezterm cli could not spawn a pane here (sandboxed?)\n'
+  fi
+  wipe; rm -f /tmp/t-wez-ids
+else
+  printf '  \033[33mskip\033[0m not inside a reachable WezTerm GUI\n'
+fi
 
 echo "TERMINAL DRIVER — tmux real end-to-end (headless split + render + close)"
 # tmux is the one backend drivable without a GUI, so actually exercise it: spin up

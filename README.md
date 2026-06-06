@@ -2,8 +2,8 @@
 
 A per-session, auto-refreshing **brief** docked beside your Claude Code session —
 so you can tab between many concurrent sessions and instantly re-orient. The
-docking terminal is **pluggable**: iTerm2, tmux, kitty, ghostty, or Apple Terminal
-are auto-detected, with a generic fallback for anything else.
+docking terminal is **pluggable**: iTerm2, tmux, kitty, WezTerm, ghostty, or Apple
+Terminal are auto-detected, with a generic fallback for anything else.
 
 ## Commands
 - **`/brief`** — open/refocus a docked split showing this session's live brief
@@ -39,12 +39,16 @@ are auto-detected, with a generic fallback for anything else.
   which session it's in.
 - **Pluggable terminal backend.** The windowing (split the pane, run the viewer,
   close on exit) lives behind a tiny **driver** contract — `bin/lib/terminal-driver.sh`
-  sources one of `bin/term/{iterm2,tmux,kitty,ghostty,terminal,generic}.sh`. The backend
-  is auto-detected (inner multiplexer wins: tmux beats the host terminal); force one
-  with `BRIEF_TERMINAL=<name>` (a name, never a path). Notes: **ghostty** docks via its
-  AppleScript dictionary (a real in-window split, like iTerm2) and needs a one-time
-  macOS Automation approval on first `/brief`; **Apple Terminal** has no scriptable
-  split panes, so its dock is a companion window positioned beside the main one;
+  sources one of `bin/term/{iterm2,tmux,kitty,wezterm,ghostty,terminal,generic}.sh`. The
+  backend is auto-detected (inner multiplexer wins: tmux beats the host terminal); force one
+  with `BRIEF_TERMINAL=<name>` (a name, never a path). Notes: **WezTerm** is the easy
+  case — `wezterm cli` reaches the always-on multiplexer over a unix socket
+  (`$WEZTERM_UNIX_SOCKET`, exported into every pane), so a real in-window split works
+  with **no config and no tty** (the dock split refocuses the session pane so your
+  keystrokes don't land in it); **ghostty** docks via its AppleScript dictionary (a
+  real in-window split, like iTerm2) and needs a one-time macOS Automation approval on
+  first `/brief`; **Apple Terminal** has no scriptable split panes, so its dock is a
+  companion window positioned beside the main one;
   **kitty** needs SOCKET remote control — `allow_remote_control yes` **and**
   `listen_on unix:/tmp/kitty` in kitty.conf, then a restart — because /brief runs
   with no controlling tty, so a tty-only setup can't be reached (add the `splits`
@@ -56,13 +60,13 @@ are auto-detected, with a generic fallback for anything else.
   profile *live*). Apple Terminal generates one at install via
   `bin/brief-term-profile.sh` — from the profile you install *from* — and imports
   it once (Terminal can't inherit or auto-load, so it's a snapshot; re-run the
-  helper to refresh). tmux/kitty/ghostty get no dedicated `brief` profile.
+  helper to refresh). tmux/kitty/WezTerm/ghostty get no dedicated `brief` profile.
   **This is the tmux driver's main disadvantage:** tmux has no per-pane font
   control — every pane shares the host terminal's one font — so the dock can't have
   a different font size or line spacing from your session; you get whatever the host
   terminal uses. (ghostty's scripting exposes font size but no line-spacing, and
-  kitty's font metrics are global, so neither gets a *dock-scoped* 1.2× `brief`
-  spacing — though both can widen spacing globally; see below.)
+  kitty's and WezTerm's font metrics are global, so none gets a *dock-scoped* 1.2×
+  `brief` spacing — though all can widen spacing globally; see below.)
   `$BRIEF_PROFILE` overrides the name (iTerm2/Apple Terminal);
   `$BRIEF_FONT_BUMP=N` (Apple Terminal) also enlarges the font.
   - **Unfocused-pane dimming** is a global app setting, not a dock profile, so you
@@ -72,8 +76,9 @@ are auto-detected, with a generic fallback for anything else.
     `~/.config/ghostty/config` (plus `adjust-cell-height = 20%` for ~1.2× spacing);
     on **kitty** add `modify_font cell_height 120%` to `~/.config/kitty/kitty.conf`
     for ~1.2× spacing (the modern directive — replaces the old `adjust_line_height`;
-    reload with ctrl+shift+f5). These are global — none of these terminals can
-    scope them to just the dock.
+    reload with ctrl+shift+f5); on **WezTerm** set `config.line_height = 1.2` in
+    `~/.wezterm.lua` for ~1.2× spacing. These are global — none of these terminals
+    can scope them to just the dock.
 - The viewer renders the brief with `glow` + a perl post-processor (gutter, indent
   hierarchy, dimmed bullets) on the terminal alt-screen, height-clipped (top-anchored).
 - A **`SessionEnd`** hook closes the dock when a session ends **and deletes that
@@ -87,7 +92,7 @@ are auto-detected, with a generic fallback for anything else.
 claude/hooks/      task-prompt-hook.sh task-summary-hook.sh task-summary-worker.sh session-end-hook.sh
 claude/bin/        brief-open.sh brief-view.sh brief-prune.sh brief-summarize.sh brief-summarize-api.sh brief-term-profile.sh
 claude/bin/lib/    terminal-driver.sh                     (sourced: detect + dispatch)
-claude/bin/term/   iterm2.sh tmux.sh kitty.sh ghostty.sh terminal.sh generic.sh   (terminal drivers)
+claude/bin/term/   iterm2.sh tmux.sh kitty.sh wezterm.sh ghostty.sh terminal.sh generic.sh   (terminal drivers)
 claude/commands/   brief.md
 claude/glow-brief.json
 iterm2/DynamicProfiles/brief.json      (iterm2 dock profile: Default + 1.2x line spacing)
@@ -127,6 +132,10 @@ coreutils needed) · the `claude` CLI. Plus **one terminal backend**:
 - **kitty** (macOS/Linux) — needs socket remote control in kitty.conf + a restart:
   `allow_remote_control yes`, `listen_on unix:/tmp/kitty` (required — /brief has no
   controlling tty), and `enabled_layouts splits,stack` for a side-by-side dock
+- **WezTerm** (macOS/Linux) — real split via `wezterm cli split-pane`, **no config
+  needed** (the mux is always on and reachable over `$WEZTERM_UNIX_SOCKET` without a
+  tty). The dock split refocuses your session pane. Covered by a hermetic wiring test
+  plus a live GUI end-to-end check in `test.sh`.
 
 Optional: `glow` (`brew install glow`, recommended) or `bat` for nicer rendering.
 `./install.sh --check` reports which backends are available and the one

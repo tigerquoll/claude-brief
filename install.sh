@@ -16,12 +16,12 @@ check_deps() {
   local missing=0 entry cmd hint
 
   # Platform — the iTerm2/Apple-Terminal drivers are macOS-only (osascript, BSD
-  # stat -f/ls -t); the tmux/kitty drivers also work on Linux. So macOS is
+  # stat -f/ls -t); the tmux/kitty/wezterm drivers also work on Linux. So macOS is
   # recommended but no longer strictly required.
   if [ "$(uname -s)" = Darwin ]; then
     printf '  \xe2\x9c\x93 %-10s macOS\n' platform
   else
-    printf '  ~ %-10s %s — iTerm2/Terminal drivers need macOS; tmux/kitty work here\n' platform "$(uname -s)"
+    printf '  ~ %-10s %s — iTerm2/Terminal drivers need macOS; tmux/kitty/wezterm work here\n' platform "$(uname -s)"
   fi
 
   # bash >= 5 — the viewer uses $EPOCHSECONDS (bash 5.0) for its timers; macOS
@@ -36,8 +36,9 @@ check_deps() {
   fi
 
   # Terminal backends — the dock needs ONE scriptable terminal driver. iTerm2 and
-  # Apple Terminal (macOS), tmux and kitty (cross-platform). At least one should be
-  # usable; otherwise only the generic "run the viewer yourself" fallback applies.
+  # Apple Terminal (macOS), tmux / kitty / WezTerm (cross-platform). At least one
+  # should be usable; otherwise only the generic "run the viewer yourself" fallback
+  # applies.
   # None of these is individually required, so absence is advisory (~), not a fail.
   local have_term=0
   if [ -d /Applications/iTerm.app ] || [ -d "$HOME/Applications/iTerm.app" ]; then
@@ -48,6 +49,9 @@ check_deps() {
   fi
   if command -v kitty >/dev/null 2>&1; then
     printf '  \xe2\x9c\x93 %-10s %s (driver: kitty — needs socket remote control: allow_remote_control + listen_on + restart)\n' kitty "$(command -v kitty)"; have_term=1
+  fi
+  if command -v wezterm >/dev/null 2>&1; then
+    printf '  \xe2\x9c\x93 %-10s %s (driver: wezterm — CLI mux, no config needed)\n' WezTerm "$(command -v wezterm)"; have_term=1
   fi
   if [ -d /Applications/Ghostty.app ] || [ -d "$HOME/Applications/Ghostty.app" ]; then
     printf '  \xe2\x9c\x93 %-10s installed (driver: ghostty — AppleScript splits; one-time Automation approval)\n' Ghostty; have_term=1
@@ -120,7 +124,7 @@ echo "installed brief-dock files into ~/.claude  (add the settings.json hooks pe
 # Apple Terminal dock profile: build a 'brief' settings set from the profile THIS
 # Terminal uses + 1.2x line spacing (set BRIEF_FONT_BUMP=N to also enlarge the font).
 # Only when installing FROM Apple Terminal — so it reads the right profile and doesn't
-# pop a Terminal window for iTerm2/tmux/kitty users. Idempotent (skips if 'brief' exists).
+# pop a Terminal window for iTerm2/tmux/kitty/wezterm users. Idempotent (skips if 'brief' exists).
 if [ "$(uname -s)" = Darwin ] && [ "${TERM_PROGRAM:-}" = Apple_Terminal ]; then
   "$HOME/.claude/bin/brief-term-profile.sh" || true
 fi
