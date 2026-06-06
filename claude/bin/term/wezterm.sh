@@ -6,6 +6,15 @@
 # Claude Code — and thus brief-open — inherit it automatically. Verified end-to-end
 # (split/render/close, headless, no tty) on wezterm 20240203. Sourced by
 # terminal-driver.sh — bash-3.2-safe.
+#
+# STYLING LIMITATION — no per-pane profiles. WezTerm has ONE global config: no
+# per-pane font / colorscheme / line-spacing, and the CLI's split-pane/spawn has no
+# --config/--font flag. So the dock CANNOT be given a distinct `brief` look the way
+# iTerm2/Apple Terminal can (only those two get a dedicated profile). The lone lever
+# is GLOBAL — `config.line_height = 1.2` in ~/.wezterm.lua — which also widens the
+# session pane. (A gui-startup Lua `set_config_overrides` event could special-case
+# the dock per-WINDOW, but not per-pane, and it's fiddly — not pursued.) Same class
+# as tmux/kitty/ghostty; $BRIEF_PROFILE does not apply.
 
 tdrv_name(){ printf 'wezterm'; }
 

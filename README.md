@@ -45,7 +45,9 @@ Terminal are auto-detected, with a generic fallback for anything else.
   case — `wezterm cli` reaches the always-on multiplexer over a unix socket
   (`$WEZTERM_UNIX_SOCKET`, exported into every pane), so a real in-window split works
   with **no config and no tty** (the dock split refocuses the session pane so your
-  keystrokes don't land in it); **ghostty** docks via its AppleScript dictionary (a
+  keystrokes don't land in it) — but, like tmux/kitty/ghostty, WezTerm has no
+  per-pane profile, so the dock can't be styled apart from the session (see Dock
+  styling below); **ghostty** docks via its AppleScript dictionary (a
   real in-window split, like iTerm2) and needs a one-time macOS Automation approval on
   first `/brief`; **Apple Terminal** has no scriptable split panes, so its dock is a
   companion window positioned beside the main one;
