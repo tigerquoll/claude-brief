@@ -33,51 +33,44 @@ _BRIEF_TERM_DIR="${BRIEF_TERM_DIR:-$HOME/.claude/bin/term}"
 _BRIEF_OS=$(uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')
 case "$_BRIEF_OS" in *[!a-z]*|'') _BRIEF_OS=unknown ;; esac
 
-# Resolve a driver NAME to its file. Precedence: an OS-specific override
-# (term/<os>/NAME.sh) beats the cross-platform term/common/NAME.sh, and a flat
-# term/NAME.sh is a legacy / custom-$BRIEF_TERM_DIR fallback. Echoes the path, or
-# nothing if no such driver exists for this OS.
+# Resolve a driver NAME to its file: an OS-specific override (term/<os>/NAME.sh)
+# beats the cross-platform term/common/NAME.sh. Echoes the path, or nothing if no
+# such driver exists for this OS.
 _brief_driver_file() {
   if   [ -f "$_BRIEF_TERM_DIR/$_BRIEF_OS/$1.sh" ]; then printf '%s' "$_BRIEF_TERM_DIR/$_BRIEF_OS/$1.sh"
   elif [ -f "$_BRIEF_TERM_DIR/common/$1.sh" ];     then printf '%s' "$_BRIEF_TERM_DIR/common/$1.sh"
-  elif [ -f "$_BRIEF_TERM_DIR/$1.sh" ];            then printf '%s' "$_BRIEF_TERM_DIR/$1.sh"
   fi
 }
 
 # Auto-detect a DROP-IN driver — the extension point for porters / custom terminals.
-# Any driver that defines tdrv_detect() (returns 0 when it recognises the current
-# terminal) is picked up here with NO edit to this file; an optional tdrv_priority()
-# (0-99, default 0; highest wins) breaks ties. We scan term/<os>/ then term/common/
-# then the flat base, taking each NAME once from the highest-precedence dir (so an
-# OS-specific driver shadows a common one of the same name) — and crucially never
-# look in the OTHER OS's dir, so wrong-OS drivers are never even sourced. The
-# built-in chain below is consulted FIRST (shipped drivers keep their tested
-# precedence); this only runs for an otherwise-unknown terminal, returning 'generic'
-# if nothing claims it. Each candidate is sourced in a SUBSHELL. Kept bash-3.2-safe.
+# A driver that defines tdrv_detect() (returns 0 when it recognises the current
+# terminal) is picked up here with NO edit to this file. We scan term/<os>/ then
+# term/common/ and the FIRST driver whose tdrv_detect succeeds wins — never looking
+# in the OTHER OS's dir, so wrong-OS drivers are never even sourced. A name found in
+# term/<os>/ shadows the same name in term/common/. The built-in chain below is
+# consulted FIRST (shipped drivers keep their tested precedence); this only runs for
+# an otherwise-unknown terminal, returning 'generic' if nothing claims it. Each
+# candidate is sourced in a SUBSHELL. Kept bash-3.2-safe.
 _brief_autodetect_extra() {
-  _best=generic _bestpri=-1 _seen=" "
-  for _d in "$_BRIEF_TERM_DIR/$_BRIEF_OS" "$_BRIEF_TERM_DIR/common" "$_BRIEF_TERM_DIR"; do
+  _seen=" "
+  for _d in "$_BRIEF_TERM_DIR/$_BRIEF_OS" "$_BRIEF_TERM_DIR/common"; do
     [ -d "$_d" ] || continue
     for _f in "$_d"/*.sh; do
       [ -f "$_f" ] || continue
       _bn=${_f##*/}; _bn=${_bn%.sh}
-      case "$_seen" in *" $_bn "*) continue ;; esac   # already taken from a higher-precedence dir
+      case "$_seen" in *" $_bn "*) continue ;; esac   # an <os>/ driver shadows the common one
       _seen="$_seen$_bn "
-      _cand=$(
+      _nm=$(
         . "$_f" >/dev/null 2>&1 || exit 0
         command -v tdrv_detect >/dev/null 2>&1 || exit 0
         tdrv_detect >/dev/null 2>&1 || exit 0
-        _p=0; command -v tdrv_priority >/dev/null 2>&1 && _p=$(tdrv_priority 2>/dev/null)
-        printf '%s %s' "${_p:-0}" "$(tdrv_name 2>/dev/null)"
+        printf '%s' "$(tdrv_name 2>/dev/null)"
       )
-      [ -n "$_cand" ] || continue
-      _pri=${_cand%% *} _nm=${_cand#* }
-      case "$_pri" in ''|*[!0-9]*) _pri=0 ;; esac
-      case "$_nm"  in ''|*[!a-z0-9]*) continue ;; esac
-      [ "$_pri" -gt "$_bestpri" ] && { _best=$_nm _bestpri=$_pri; }
+      case "$_nm" in ''|*[!a-z0-9]*) continue ;; esac
+      printf '%s' "$_nm"; return 0
     done
   done
-  printf '%s' "$_best"
+  printf 'generic'
 }
 
 _brief_pick_driver() {
@@ -101,9 +94,9 @@ _brief_pick_driver() {
   # Name whitelist: lowercase alnum only. Anything else (a path, traversal, empty,
   # unknown) collapses to generic and can never resolve outside term/.
   case "$_n" in *[!a-z0-9]*|'') _n=generic ;; esac
-  # Resolve to a real file (OS-specific > common > flat); a built-in name with no
-  # driver for THIS OS (e.g. ghostty on Linux, before a linux/ghostty.sh exists)
-  # falls back to generic rather than failing.
+  # Resolve to a real file (OS-specific > common); a built-in name with no driver for
+  # THIS OS (e.g. ghostty on Linux, before a linux/ghostty.sh exists) falls back to
+  # generic rather than failing.
   _file=$(_brief_driver_file "$_n"); [ -n "$_file" ] || _file=$(_brief_driver_file generic)
   [ -n "$_file" ] && . "$_file"
 }

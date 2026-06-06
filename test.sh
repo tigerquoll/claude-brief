@@ -17,7 +17,7 @@ mkfake(){ printf '%s' "$2" > "$BIN/$1"; chmod 755 "$BIN/$1"; }
 
 S=feed0000-0000-0000-0000-000000000000          # throwaway, UUID-shaped
 wipe(){ rm -f "$ST/$S".* 2>/dev/null; rmdir "$ST/$S.brief.lock" 2>/dev/null; }
-trap 'wipe; rm -f "$BIN"/t-*.sh "$BIN/term/fake.sh" /tmp/t-* 2>/dev/null' EXIT
+trap 'wipe; rm -f "$BIN"/t-*.sh "$BIN/term/common/fake.sh" /tmp/t-* 2>/dev/null' EXIT
 
 mkfake t-ok.sh   $'#!/usr/bin/env bash\nprintf "goal: g\\nnow: GOOD\\n===BRIEF===\\n# T\\n## State\\n- s\\n## Tried\\n—\\n## Gotchas\\n—\\n## Decisions\\n—\\n## Next / Open\\n- n\\n"\n'
 mkfake t-unch.sh $'#!/usr/bin/env bash\nprintf "goal: g\\nnow: n\\n===BRIEF===\\nUNCHANGED\\n"\n'
@@ -180,18 +180,16 @@ is "traversal -> generic"   "$(drv BRIEF_TERMINAL=../evil)" generic
 is "slashes -> generic"     "$(drv BRIEF_TERMINAL=a/b)" generic
 is "unknown -> generic"     "$(drv BRIEF_TERMINAL=nope)" generic
 
-echo "TERMINAL DRIVER — pluggable drop-in detection (tdrv_detect / tdrv_priority)"
-# The extension point for porters: a third-party term/<name>.sh that defines
+echo "TERMINAL DRIVER — pluggable drop-in detection (tdrv_detect)"
+# The extension point for porters: a term/common/ (or term/<os>/) driver that defines
 # tdrv_detect() is auto-selected with NO edit to terminal-driver.sh. Built-ins are
-# matched first (precedence preserved); tdrv_priority breaks ties between drop-ins.
-DD=$(mktemp -d "${TMPDIR:-/tmp}/t-drop.XXXXXX")
-cp "$BIN/term/common/generic.sh" "$BIN/term/common/tmux.sh" "$DD/"   # flat drop-ins (legacy-dir fallback)
-printf '%s' $'tdrv_name(){ printf foo; }\ntdrv_detect(){ [ -n "${FOO:-}" ]; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' > "$DD/foo.sh"
-printf '%s' $'tdrv_name(){ printf bar; }\ntdrv_detect(){ [ -n "${BAR:-}" ]; }\ntdrv_priority(){ printf 50; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' > "$DD/bar.sh"
+# matched first; the first drop-in whose tdrv_detect succeeds wins.
+DD=$(mktemp -d "${TMPDIR:-/tmp}/t-drop.XXXXXX"); mkdir -p "$DD/common"
+cp "$BIN/term/common/generic.sh" "$BIN/term/common/tmux.sh" "$DD/common/"
+printf '%s' $'tdrv_name(){ printf foo; }\ntdrv_detect(){ [ -n "${FOO:-}" ]; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' > "$DD/common/foo.sh"
 dpick(){ env -i HOME="$HOME" PATH="$PATH" BRIEF_TERM_DIR="$DD" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_name'; }
 is "drop-in self-detects (tdrv_detect)" "$(dpick FOO=1 BRIEF_TERMINAL=auto)" foo
 is "no drop-in claims -> generic"       "$(dpick BRIEF_TERMINAL=auto)" generic
-is "tdrv_priority breaks the tie"       "$(dpick FOO=1 BAR=1 BRIEF_TERMINAL=auto)" bar
 is "built-in beats a drop-in"           "$(dpick TMUX=x FOO=1 BRIEF_TERMINAL=auto)" tmux
 is "force a drop-in by name"            "$(dpick BRIEF_TERMINAL=foo)" foo
 rm -rf "$DD"
@@ -238,7 +236,7 @@ is "legacy single -> iterm2" "$(parse 'ABCD-1234')" 'iterm2|ABCD-1234'
 
 echo "TERMINAL DRIVER — brief-open/session-end drive the driver (fake backend)"
 mkdir -p "$BIN/term"
-printf '%s' $'tdrv_name(){ printf fake; }\ntdrv_self_pane(){ printf FP; }\ntdrv_open(){ echo "open $*" >>/tmp/t-term; printf FAKEID; }\ntdrv_close(){ echo "close $*" >>/tmp/t-term; }\n' > "$BIN/term/fake.sh"
+printf '%s' $'tdrv_name(){ printf fake; }\ntdrv_self_pane(){ printf FP; }\ntdrv_open(){ echo "open $*" >>/tmp/t-term; printf FAKEID; }\ntdrv_close(){ echo "close $*" >>/tmp/t-term; }\n' > "$BIN/term/common/fake.sh"
 wipe; rm -f /tmp/t-term; mkdir -p "$ST/panes"; printf '%s\n' "$S" > "$ST/panes/FP"
 BRIEF_TERMINAL=fake "$BIN/brief-open.sh" >/dev/null 2>&1
 is "brief-open called tdrv_open" "$(grep -c "^open dock FP " /tmp/t-term 2>/dev/null)" 1

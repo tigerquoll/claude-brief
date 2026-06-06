@@ -49,8 +49,8 @@ Terminal are auto-detected, with a generic fallback for anything else.
   Linux's search path (`term/linux/` + `term/common/`), so it's never even sourced
   there; no per-driver OS guard needed. A new driver auto-detects with **no edit to the
   core** — drop a `term/common/<name>.sh` (or `term/<os>/<name>.sh`) implementing the
-  four `tdrv_*` functions plus an optional `tdrv_detect()` (return 0 when it recognises
-  the terminal; an optional `tdrv_priority()` 0–99 breaks ties). Notes: **WezTerm** is the easy
+  four `tdrv_*` functions plus a `tdrv_detect()` (return 0 when it recognises the
+  terminal; the first match wins). Notes: **WezTerm** is the easy
   case — `wezterm cli` reaches the always-on multiplexer over a unix socket
   (`$WEZTERM_UNIX_SOCKET`, exported into every pane), so a real in-window split works
   with **no config and no tty** (the dock split refocuses the session pane so your
