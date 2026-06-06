@@ -66,11 +66,25 @@ Terminal are auto-detected, with a generic fallback for anything else.
   **This is the tmux driver's main disadvantage:** tmux has no per-pane font
   control — every pane shares the host terminal's one font — so the dock can't have
   a different font size or line spacing from your session; you get whatever the host
-  terminal uses. (ghostty's scripting exposes font size but no line-spacing, and
-  kitty's and WezTerm's font metrics are global, so none gets a *dock-scoped* 1.2×
-  `brief` spacing — though all can widen spacing globally; see below.)
-  `$BRIEF_PROFILE` overrides the name (iTerm2/Apple Terminal);
-  `$BRIEF_FONT_BUMP=N` (Apple Terminal) also enlarges the font.
+  terminal uses. Only iTerm2 and Apple Terminal can give the dock its **own**
+  profile; every other backend can at most widen line spacing **globally** (which
+  also affects your session pane). What each backend can scope to just the dock:
+
+  | Backend | Dock-scoped line spacing *(the `brief` profile's whole point)* | Other per-pane styling it can do | Global ~1.2× spacing lever |
+  |---|---|---|---|
+  | **iTerm2** | ✅ DynamicProfile (live-inherits Default) | full `brief` profile | — (built in) |
+  | **Apple Terminal** | ✅ imported `.terminal` snapshot | full `brief` profile | — (built in) |
+  | **ghostty** | ❌ no line-height key/action | per-surface font **size** only | `adjust-cell-height = 20%` |
+  | **kitty** | ❌ font metrics are global | per-window **colors** (`kitty @ set-colors`) | `modify_font cell_height 120%` |
+  | **WezTerm** | ❌ one global config | none via the CLI | `config.line_height = 1.2` |
+  | **tmux** | ❌ shares the host terminal's font | none — can't change the font at all | (host terminal's font) |
+
+  So **kitty, WezTerm, ghostty, and tmux all hit the same wall**: no dock-scoped
+  `brief` spacing — the global lever (last column) is the only workaround, and it
+  widens your session pane too. ghostty can at least vary per-surface font *size*
+  and kitty can recolor a window, but neither (nor WezTerm/tmux) can give the dock
+  the 1.2× line spacing. `$BRIEF_PROFILE` overrides the profile name (iTerm2/Apple
+  Terminal); `$BRIEF_FONT_BUMP=N` (Apple Terminal) also enlarges the font.
   - **Unfocused-pane dimming** is a global app setting, not a dock profile, so you
     set it once yourself: on **iTerm2** uncheck Settings ▸ Appearance ▸ Dimming ▸
     *Dim inactive split panes* (otherwise the dock fades while you're typing in the
