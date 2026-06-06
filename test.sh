@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Tests deliberately set vars inside ( ) / $( ) subshells for isolation and use
+# && || assertion idioms, which trip these info checks throughout — silence them
+# file-wide rather than per-line.
+# shellcheck disable=SC2030,SC2031,SC2015,SC2162
 # Regression tests for the brief-dock scripts. Run after ./install.sh (or ./sync.sh)
 # — it exercises the LIVE ~/.claude scripts. Integration-style: drives the real
 # worker/hooks with throwaway (hex-UUID) session ids and FAKE summarisers placed
@@ -417,8 +421,8 @@ is "ghostty open hands focus back" "$(grep -c 'focus anchorT' "$OSALOG")" 1
 
 # -- ghostty float = new window --
 rstlogs
-gfid=$( export PATH="$SDIR:$PATH" OSA_OPENID="CCCC-DDDD" BRIEF_TERMINAL=ghostty
-        . "$LIB" >/dev/null 2>&1; tdrv_open float "" "$BVIEW" "$SIDF" )
+( export PATH="$SDIR:$PATH" OSA_OPENID="CCCC-DDDD" BRIEF_TERMINAL=ghostty
+  . "$LIB" >/dev/null 2>&1; tdrv_open float "" "$BVIEW" "$SIDF" ) >/dev/null
 is "ghostty float = new window" "$(grep -c 'new window with configuration' "$OSALOG")" 1
 
 # -- ghostty close: kills ONLY the brief-view proc, spares the decoy --

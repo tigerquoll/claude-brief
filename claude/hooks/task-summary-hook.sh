@@ -36,6 +36,7 @@ marker="$HOME/.claude/state/$sid.tlines"
 if [ -f "$tpath" ]; then
   cur=$(wc -l < "$tpath" 2>/dev/null); cur=${cur:-0}
   last=$(cat "$marker" 2>/dev/null); case "$last" in ''|*[!0-9]*) last=0 ;; esac
+  # shellcheck disable=SC2046  # word-splitting is intentional: jq emits space-separated tokens for $@
   set -- $(tail -n "+$((last + 1))" "$tpath" 2>/dev/null | jq -rs '
     [ .[] | select(.message.role? == "assistant") | .message.content[]? ] as $b
     | "\([ $b[] | select(.type? == "tool_use") ] | length) \([ $b[] | select(.type? == "text") | (.text | length) ] | add // 0)"

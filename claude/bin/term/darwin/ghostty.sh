@@ -118,6 +118,9 @@ tdrv_close(){
   case "$_sid" in ''|*[!0-9A-Fa-f-]*) return 0 ;; esac # UUID-shaped session id
   _i=0                       # SIGKILL the viewer; loop until it's gone (or ~3s)
   while [ "$_i" -lt 15 ]; do
+    # scoped ps|grep on the EXACT "brief-view.sh <sid>" is the safety contract — a bare
+    # pgrep -f would be broader, so SC2009 (prefer pgrep) doesn't apply.
+    # shellcheck disable=SC2009
     _pids=$(ps -ax -o pid=,command= 2>/dev/null | grep -F "brief-view.sh $_sid" | grep -v grep | awk '{print $1}')
     [ -z "$_pids" ] && break
     # One pid per line; a read loop kills each regardless of the sourcing shell's
