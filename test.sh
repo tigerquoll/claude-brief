@@ -173,6 +173,7 @@ is "kitty self id"       "$(sp KITTY_WINDOW_ID=42 BRIEF_TERMINAL=kitty)" "42"
 is "wezterm self id"     "$(sp WEZTERM_PANE=3 BRIEF_TERMINAL=wezterm)" "3"
 is "tabby self id empty" "$(sp TERM_PROGRAM=Tabby BRIEF_TERMINAL=tabby)" ""
 is "iterm2 self hex-only" "$(sp ITERM_SESSION_ID='w0t0p0:AB/../CD' BRIEF_TERMINAL=iterm2)" "ABCD"
+is "terminal self hex-only" "$(sp TERM_SESSION_ID='w0t0p0:AB-CD/..' BRIEF_TERMINAL=terminal)" "AB-CD"
 
 echo "TERMINAL DRIVER — .brief.session parse (MIRROR of brief-open/session-end)"
 parse(){ local s=$1 n i; n=${s%% *}; i=${s#* }; [ "$n" = "$i" ] && n=iterm2; case "$n" in *[!a-z0-9]*) n="" ;; esac; echo "$n|$i"; }
@@ -305,6 +306,116 @@ is "tabby prints a split hint"     "$(grep -c '^HINT$'        /tmp/t-tabby-res)"
 is "tabby close is a safe no-op"   "$(grep -c '^CLOSEOK$'     /tmp/t-tabby-res)" 1
 is "tabby has no self-pane id"     "$(grep -c '^SELFEMPTY$'   /tmp/t-tabby-res)" 1
 rm -f /tmp/t-tabby-err /tmp/t-tabby-res
+
+echo "TERMINAL DRIVER — ghostty + Apple Terminal: osascript wiring + close-safety (stubbed)"
+# The two AppleScript drivers shell out to osascript/ps, so stub those on PATH and
+# drive them hermetically. HIGH-VALUE safety assertions: close NEVER blanket-kills a
+# tty — it kills ONLY a brief-view.sh-scoped process (a decoy "claude" sharing the tty
+# must survive) and bails entirely when the dock window is gone. `kill` is the REAL
+# builtin acting on REAL throwaway processes, so the safety is verified, not mocked.
+SDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-osa.XXXXXX")
+export OSALOG="$SDIR/osa.log" PSLOG="$SDIR/ps.log" PSCOUNT="$SDIR/ps.count" BVIEW="$BIN/brief-view.sh"
+cat > "$SDIR/osascript" <<'STUB'
+#!/usr/bin/env bash
+d=$(cat 2>/dev/null); all="$* $d"
+printf '=== call ===\nARGS: %s\nSTDIN: %s\n' "$*" "$d" >> "$OSALOG"
+case "$all" in
+  *'return "y"'*)                printf '%s\n' "${OSA_EXISTS:-y}" ;;       # window-exists check
+  *'busy of selected tab'*)      printf '%s\n' "${OSA_BUSY:-false}" ;;     # busy check (false=idle)
+  *'close w'*|*'close tm'*)      : ;;                                      # close -> recorded only
+  *'do script'*)                 printf '%s\n' "${OSA_OPENID}" ;;          # Apple Terminal open
+  *'new surface configuration'*) printf '%s\n' "${OSA_OPENID}" ;;          # ghostty open
+  *'focused terminal of selected tab of front window'*) printf '%s\n' "${OSA_SELF}" ;; # ghostty self
+  *) : ;;
+esac
+STUB
+cat > "$SDIR/ps" <<'STUB'
+#!/usr/bin/env bash
+echo "PS: $*" >> "$PSLOG"
+c=$(cat "$PSCOUNT" 2>/dev/null || echo 0); c=$((c+1)); echo "$c" > "$PSCOUNT"
+if [ "$c" -le 1 ]; then                       # first poll: the viewer + a DECOY on the tty
+  printf ' %s /bin/bash %s %s\n' "${BVPID}" "${BVIEW}" "${SID}"
+  printf ' %s claude --resume %s\n' "${DECOYPID}" "${SID}"
+fi                                            # later polls: empty (as if the viewer was killed)
+STUB
+chmod +x "$SDIR/osascript" "$SDIR/ps"
+rstlogs(){ : > "$OSALOG"; : > "$PSLOG"; rm -f "$PSCOUNT"; }
+alive(){ kill -0 "$1" 2>/dev/null && echo yes || echo no; }
+SIDF=feed0000-dead-beef-0000-000000000000
+
+# -- ghostty self id (osascript-backed) --
+rstlogs
+gself=$( export PATH="$SDIR:$PATH" OSA_SELF="1A2B-3C4D" BRIEF_TERMINAL=ghostty
+         . "$LIB" >/dev/null 2>&1; tdrv_self_pane )
+is "ghostty self id (osascript)" "$gself" "1A2B-3C4D"
+
+# -- ghostty open: dock split + PATH inject + focus-back; id = <uuid>:<sid> --
+rstlogs
+gid=$( export PATH="$SDIR:$PATH" OSA_OPENID="AAAA-BBBB" BRIEF_TERMINAL=ghostty
+       . "$LIB" >/dev/null 2>&1; tdrv_open dock "AAAA-BBBB" "$BVIEW" "$SIDF" )
+is "ghostty open id = uuid:sid"    "$gid" "AAAA-BBBB:$SIDF"
+is "ghostty open splits right"     "$(grep -c 'split anchorT direction right' "$OSALOG")" 1
+is "ghostty open injects PATH"     "$(grep -c 'environment variables of cfg' "$OSALOG")" 1
+is "ghostty open hands focus back" "$(grep -c 'focus anchorT' "$OSALOG")" 1
+
+# -- ghostty float = new window --
+rstlogs
+gfid=$( export PATH="$SDIR:$PATH" OSA_OPENID="CCCC-DDDD" BRIEF_TERMINAL=ghostty
+        . "$LIB" >/dev/null 2>&1; tdrv_open float "" "$BVIEW" "$SIDF" )
+is "ghostty float = new window" "$(grep -c 'new window with configuration' "$OSALOG")" 1
+
+# -- ghostty close: kills ONLY the brief-view proc, spares the decoy --
+rstlogs
+perl -e 'select(undef,undef,undef,10)' & BV=$!
+perl -e 'select(undef,undef,undef,10)' & DC=$!
+( export PATH="$SDIR:$PATH" BRIEF_TERMINAL=ghostty BVPID=$BV DECOYPID=$DC SID="$SIDF"
+  . "$LIB" >/dev/null 2>&1; tdrv_close "AAAA-BBBB:$SIDF" ) </dev/null >/dev/null 2>&1
+wait "$BV" 2>/dev/null
+is "ghostty close killed the viewer" "$(alive $BV)" no
+is "ghostty close spared the decoy"  "$(alive $DC)" yes
+kill -KILL $DC 2>/dev/null; wait $DC 2>/dev/null
+
+# -- ghostty close bails on a malformed id (no colon) -> touches nothing --
+rstlogs
+( export PATH="$SDIR:$PATH" BRIEF_TERMINAL=ghostty
+  . "$LIB" >/dev/null 2>&1; tdrv_close "notanid" ) </dev/null >/dev/null 2>&1
+is "ghostty close bails on bad id" "$([ -s "$PSLOG" ] || [ -s "$OSALOG" ] && echo touched || echo clean)" clean
+
+# -- Apple Terminal open: do script + id = <winid>:<tty> --
+rstlogs
+tid=$( export PATH="$SDIR:$PATH" OSA_OPENID="7:/dev/ttysTEST" BRIEF_TERMINAL=terminal
+       . "$LIB" >/dev/null 2>&1; tdrv_open dock "" "$BVIEW" "$SIDF" )
+is "terminal open id = winid:tty" "$tid" "7:/dev/ttysTEST"
+is "terminal open via do script"  "$(grep -c 'do script .exec' "$OSALOG")" 1
+
+# -- Apple Terminal close: window GONE -> touch NOTHING (the recycled-tty safety) --
+rstlogs
+perl -e 'select(undef,undef,undef,10)' & BV=$!
+( export PATH="$SDIR:$PATH" BRIEF_TERMINAL=terminal OSA_EXISTS=n BVPID=$BV DECOYPID=$BV SID="$SIDF"
+  . "$LIB" >/dev/null 2>&1; tdrv_close "7:/dev/ttysTEST" ) </dev/null >/dev/null 2>&1
+is "terminal gone -> no ps poll"   "$([ -s "$PSLOG" ] && echo touched || echo clean)" clean
+is "terminal gone -> no window close" "$(grep -c 'close w' "$OSALOG")" 0
+is "terminal gone -> viewer untouched" "$(alive $BV)" yes
+kill -KILL $BV 2>/dev/null; wait $BV 2>/dev/null
+
+# -- Apple Terminal close: window exists -> kill ONLY brief-view, spare the decoy --
+rstlogs
+perl -e 'select(undef,undef,undef,10)' & BV=$!
+perl -e 'select(undef,undef,undef,10)' & DC=$!
+( export PATH="$SDIR:$PATH" BRIEF_TERMINAL=terminal OSA_EXISTS=y OSA_BUSY=false BVPID=$BV DECOYPID=$DC SID="$SIDF"
+  . "$LIB" >/dev/null 2>&1; tdrv_close "7:/dev/ttysTEST" ) </dev/null >/dev/null 2>&1
+wait "$BV" 2>/dev/null
+is "terminal close killed the viewer" "$(alive $BV)" no
+is "terminal close spared the decoy"  "$(alive $DC)" yes
+kill -KILL $DC 2>/dev/null; wait $DC 2>/dev/null
+
+# -- Apple Terminal close bails on a malformed id (non-numeric winid) --
+rstlogs
+( export PATH="$SDIR:$PATH" BRIEF_TERMINAL=terminal
+  . "$LIB" >/dev/null 2>&1; tdrv_close "abc:/dev/ttysX" ) </dev/null >/dev/null 2>&1
+is "terminal close bails on bad winid" "$([ -s "$OSALOG" ] && echo touched || echo clean)" clean
+
+rm -rf "$SDIR"; unset OSALOG PSLOG PSCOUNT BVIEW
 
 echo "TERMINAL DRIVER — tmux real end-to-end (headless split + render + close)"
 # tmux is the one backend drivable without a GUI, so actually exercise it: spin up
