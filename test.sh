@@ -152,6 +152,9 @@ is "kitty detected"         "$(drv KITTY_WINDOW_ID=3 BRIEF_TERMINAL=auto)" kitty
 is "wezterm via TERM_PROGRAM" "$(drv TERM_PROGRAM=WezTerm BRIEF_TERMINAL=auto)" wezterm
 is "wezterm via WEZTERM_PANE" "$(drv WEZTERM_PANE=0 BRIEF_TERMINAL=auto)" wezterm
 is "tmux wins over wezterm"  "$(drv TMUX=x WEZTERM_PANE=0 BRIEF_TERMINAL=auto)" tmux
+is "tabby via TERM_PROGRAM"  "$(drv TERM_PROGRAM=Tabby BRIEF_TERMINAL=auto)" tabby
+is "tabby via config-dir env" "$(drv TABBY_CONFIG_DIRECTORY=/x BRIEF_TERMINAL=auto)" tabby
+is "tmux wins over tabby"    "$(drv TMUX=x TERM_PROGRAM=Tabby BRIEF_TERMINAL=auto)" tmux
 is "ghostty via TERM_PROGRAM" "$(drv TERM_PROGRAM=ghostty BRIEF_TERMINAL=auto)" ghostty
 is "ghostty via GHOSTTY env"  "$(drv GHOSTTY_RESOURCES_DIR=/x BRIEF_TERMINAL=auto)" ghostty
 is "tmux wins over ghostty"  "$(drv TMUX=x TERM_PROGRAM=ghostty BRIEF_TERMINAL=auto)" tmux
@@ -168,6 +171,7 @@ sp(){ env -i HOME="$HOME" PATH="$PATH" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&
 is "tmux self id"        "$(sp TMUX=x TMUX_PANE=%7 BRIEF_TERMINAL=tmux)" "%7"
 is "kitty self id"       "$(sp KITTY_WINDOW_ID=42 BRIEF_TERMINAL=kitty)" "42"
 is "wezterm self id"     "$(sp WEZTERM_PANE=3 BRIEF_TERMINAL=wezterm)" "3"
+is "tabby self id empty" "$(sp TERM_PROGRAM=Tabby BRIEF_TERMINAL=tabby)" ""
 is "iterm2 self hex-only" "$(sp ITERM_SESSION_ID='w0t0p0:AB/../CD' BRIEF_TERMINAL=iterm2)" "ABCD"
 
 echo "TERMINAL DRIVER — .brief.session parse (MIRROR of brief-open/session-end)"
@@ -282,6 +286,25 @@ if command -v wezterm >/dev/null 2>&1 && [ -n "${WEZTERM_PANE:-}" ] && wezterm c
 else
   printf '  \033[33mskip\033[0m not inside a reachable WezTerm GUI\n'
 fi
+
+echo "TERMINAL DRIVER — tabby recognized manual fallback (no scriptable split/RC)"
+# Tabby (Electron) can't be auto-docked — no scriptable split, CLI opens tabs only
+# (no id/close), no AppleScript. So the driver behaves like generic but prints a
+# Tabby-specific hint, and brief-open prints the manual viewer command + exits 0.
+(
+  export BRIEF_TERMINAL=tabby
+  . "$LIB" >/dev/null 2>&1
+  id=$(tdrv_open dock "" "$BIN/brief-view.sh" sid 2>/tmp/t-tabby-err)
+  printf 'OPENID=[%s]\n' "$id"
+  grep -qi 'tabby' /tmp/t-tabby-err && echo HINT
+  tdrv_close 123 >/dev/null 2>&1 && echo CLOSEOK
+  [ -z "$(tdrv_self_pane)" ] && echo SELFEMPTY
+) > /tmp/t-tabby-res 2>/dev/null
+is "tabby open yields no dock id"  "$(grep -c '^OPENID=\[\]$' /tmp/t-tabby-res)" 1
+is "tabby prints a split hint"     "$(grep -c '^HINT$'        /tmp/t-tabby-res)" 1
+is "tabby close is a safe no-op"   "$(grep -c '^CLOSEOK$'     /tmp/t-tabby-res)" 1
+is "tabby has no self-pane id"     "$(grep -c '^SELFEMPTY$'   /tmp/t-tabby-res)" 1
+rm -f /tmp/t-tabby-err /tmp/t-tabby-res
 
 echo "TERMINAL DRIVER — tmux real end-to-end (headless split + render + close)"
 # tmux is the one backend drivable without a GUI, so actually exercise it: spin up

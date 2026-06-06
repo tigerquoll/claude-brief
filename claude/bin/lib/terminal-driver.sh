@@ -34,6 +34,8 @@ _brief_pick_driver() {
       elif [ -n "${KITTY_WINDOW_ID:-}" ];                 then _n=kitty
       elif [ "${TERM_PROGRAM:-}" = WezTerm ] \
         || [ -n "${WEZTERM_PANE:-}" ];                     then _n=wezterm
+      elif [ "${TERM_PROGRAM:-}" = Tabby ] \
+        || [ -n "${TABBY_CONFIG_DIRECTORY:-}" ];           then _n=tabby
       elif [ "${TERM_PROGRAM:-}" = ghostty ] \
         || [ -n "${GHOSTTY_RESOURCES_DIR:-}" ];           then _n=ghostty
       elif [ "${TERM_PROGRAM:-}" = iTerm.app ] \

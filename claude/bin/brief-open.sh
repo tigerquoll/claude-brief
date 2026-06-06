@@ -82,8 +82,10 @@ new_id=$(tdrv_open "$mode" "$pane" "$HOME/.claude/bin/brief-view.sh" "$sid")
 if [ -n "$new_id" ]; then
   printf '%s %s\n' "$(tdrv_name)" "$new_id" > "$sess_file"
   echo "brief: dock ready for ${sid:0:8} (via=$via, term=$(tdrv_name), mode=$mode)"
-elif [ "$(tdrv_name)" = generic ]; then
-  echo "brief: no dock driver for this terminal — open the viewer in a split/window you create:"
+elif [ "$(tdrv_name)" = generic ] || [ "$(tdrv_name)" = tabby ]; then
+  # generic + tabby can't script a dock; the driver may have printed a terminal-
+  # specific hint to stderr — print the exact viewer command to run by hand.
+  echo "brief: no auto-dock for this terminal — open the viewer in a split/window you create:"
   echo "       $HOME/.claude/bin/brief-view.sh $sid"
   exit 0
 else
