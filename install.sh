@@ -113,7 +113,12 @@ mkdir -p ~/.claude/hooks ~/.claude/bin ~/.claude/bin/lib ~/.claude/bin/term ~/.c
 cp "$root"/claude/hooks/*.sh ~/.claude/hooks/
 cp "$root"/claude/bin/*.sh ~/.claude/bin/
 cp "$root"/claude/bin/lib/*.sh ~/.claude/bin/lib/
-cp "$root"/claude/bin/term/*.sh ~/.claude/bin/term/
+rm -f ~/.claude/bin/term/*.sh 2>/dev/null   # migration: drop pre-subdir flat drivers
+for _d in common darwin linux; do            # term/<os>/ + term/common/ (see terminal-driver.sh)
+  ls "$root"/claude/bin/term/"$_d"/*.sh >/dev/null 2>&1 || continue
+  mkdir -p ~/.claude/bin/term/"$_d"
+  cp "$root"/claude/bin/term/"$_d"/*.sh ~/.claude/bin/term/"$_d"/
+done
 cp "$root"/claude/commands/*.md ~/.claude/commands/
 cp "$root"/claude/glow-brief.json ~/.claude/
 # iTerm2 dock profile — only on macOS, and only if present in the repo.

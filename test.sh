@@ -185,7 +185,7 @@ echo "TERMINAL DRIVER — pluggable drop-in detection (tdrv_detect / tdrv_priori
 # tdrv_detect() is auto-selected with NO edit to terminal-driver.sh. Built-ins are
 # matched first (precedence preserved); tdrv_priority breaks ties between drop-ins.
 DD=$(mktemp -d "${TMPDIR:-/tmp}/t-drop.XXXXXX")
-cp "$BIN/term/generic.sh" "$BIN/term/tmux.sh" "$DD/"     # generic = fallback; tmux = a built-in
+cp "$BIN/term/common/generic.sh" "$BIN/term/common/tmux.sh" "$DD/"   # flat drop-ins (legacy-dir fallback)
 printf '%s' $'tdrv_name(){ printf foo; }\ntdrv_detect(){ [ -n "${FOO:-}" ]; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' > "$DD/foo.sh"
 printf '%s' $'tdrv_name(){ printf bar; }\ntdrv_detect(){ [ -n "${BAR:-}" ]; }\ntdrv_priority(){ printf 50; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' > "$DD/bar.sh"
 dpick(){ env -i HOME="$HOME" PATH="$PATH" BRIEF_TERM_DIR="$DD" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_name'; }
@@ -195,6 +195,32 @@ is "tdrv_priority breaks the tie"       "$(dpick FOO=1 BAR=1 BRIEF_TERMINAL=auto
 is "built-in beats a drop-in"           "$(dpick TMUX=x FOO=1 BRIEF_TERMINAL=auto)" tmux
 is "force a drop-in by name"            "$(dpick BRIEF_TERMINAL=foo)" foo
 rm -rf "$DD"
+
+echo "TERMINAL DRIVER — OS-bucketed layout (term/<os>/ over term/common/, no cross-OS leak)"
+# The restructure: drivers live in term/<os>/ (OS-specific) + term/common/ (shared).
+# A macOS-only driver in darwin/ must NOT be on Linux's search path (and vice versa),
+# and an <os>/ driver shadows a common/ one of the same name. Stub `uname` so both
+# OSes are exercised from one host.
+OD=$(mktemp -d "${TMPDIR:-/tmp}/t-osdir.XXXXXX"); mkdir -p "$OD/common" "$OD/darwin" "$OD/linux"
+cp "$BIN/term/common/generic.sh" "$OD/common/"                       # fallback, resolvable on any OS
+mk(){ printf 'tdrv_name(){ printf %s; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' "$1"; }
+mk mac      > "$OD/darwin/mac.sh"                                    # macOS-only
+mk lin      > "$OD/linux/lin.sh"                                     # Linux-only
+mk shcommon > "$OD/common/sh.sh"                                     # shared name...
+mk shdarwin > "$OD/darwin/sh.sh"                                     # ...with a darwin override
+printf 'tdrv_name(){ printf dd; }\ntdrv_detect(){ true; }\ntdrv_self_pane(){ :; }\ntdrv_open(){ :; }\ntdrv_close(){ :; }\n' > "$OD/darwin/dd.sh"
+mkdir -p "$OD/ud" "$OD/ul"
+printf '%s' $'#!/usr/bin/env bash\necho Darwin\n' > "$OD/ud/uname"; printf '%s' $'#!/usr/bin/env bash\necho Linux\n' > "$OD/ul/uname"
+chmod +x "$OD/ud/uname" "$OD/ul/uname"
+opick(){ _os=$1; shift; env -i HOME="$HOME" PATH="$OD/u$_os:$PATH" BRIEF_TERM_DIR="$OD" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_name'; }
+is "darwin/ driver resolves on macOS"      "$(opick d BRIEF_TERMINAL=mac)" mac
+is "darwin/ driver absent on Linux->generic" "$(opick l BRIEF_TERMINAL=mac)" generic
+is "linux/ driver resolves on Linux"       "$(opick l BRIEF_TERMINAL=lin)" lin
+is "common/ driver resolves on any OS"     "$(opick l BRIEF_TERMINAL=sh)" shcommon
+is "os/ shadows common/ (same name)"       "$(opick d BRIEF_TERMINAL=sh)" shdarwin
+is "drop-in in darwin/ auto-detects (macOS)" "$(opick d BRIEF_TERMINAL=auto)" dd
+is "darwin/ drop-in NOT probed on Linux"   "$(opick l BRIEF_TERMINAL=auto)" generic
+rm -rf "$OD"
 
 echo "TERMINAL DRIVER — self_pane is filesystem-safe (no slash)"
 sp(){ env -i HOME="$HOME" PATH="$PATH" "$@" bash -c '. "'"$LIB"'" >/dev/null 2>&1; tdrv_self_pane'; }

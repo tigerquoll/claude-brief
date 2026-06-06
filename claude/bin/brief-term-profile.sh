@@ -6,7 +6,7 @@
 # `open` (which flashes one Terminal window — just close it) ONLY if "brief" isn't
 # already present, so it's safe/idempotent to re-run. To rebuild from a different
 # profile, delete the "brief" profile first (Settings ▸ Profiles ▸ brief ▸ –), then
-# re-run. The driver (bin/term/terminal.sh) applies "brief" to the dock if it exists,
+# re-run. The driver (bin/term/darwin/terminal.sh) applies "brief" to the dock if it exists,
 # else inherits the session profile — so this is optional; it only adds the spacing.
 #
 # Why a static, install-time profile (not created live on /brief): line spacing

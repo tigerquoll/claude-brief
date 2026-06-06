@@ -39,14 +39,18 @@ Terminal are auto-detected, with a generic fallback for anything else.
   which session it's in.
 - **Pluggable terminal backend.** The windowing (split the pane, run the viewer,
   close on exit) lives behind a tiny **driver** contract — `bin/lib/terminal-driver.sh`
-  sources one of `bin/term/{iterm2,tmux,kitty,wezterm,ghostty,terminal,tabby,generic}.sh`. The
-  backend is auto-detected (inner multiplexer wins: tmux beats the host terminal); force one
-  with `BRIEF_TERMINAL=<name>` (a name, never a path). **Porting / custom terminals:**
-  the core is OS-portable (file times/perms go through `bin/lib/portable.sh`, which
-  handles BSD *and* GNU `stat`), and a new driver auto-detects with **no edit to the
-  core** — drop a `term/<name>.sh` implementing the four `tdrv_*` functions plus an
-  optional `tdrv_detect()` (return 0 when it recognises the terminal; an optional
-  `tdrv_priority()` 0–99 breaks ties). Notes: **WezTerm** is the easy
+  resolves a driver name to `bin/term/<os>/<name>.sh` (OS-specific, e.g. `darwin/`) or
+  `bin/term/common/<name>.sh` (cross-platform), `<os>/` winning. The backend is
+  auto-detected (inner multiplexer wins: tmux beats the host terminal); force one with
+  `BRIEF_TERMINAL=<name>` (a name, never a path). **Porting / custom terminals:** the
+  core is OS-portable (file times/perms go through `bin/lib/portable.sh`, which handles
+  BSD *and* GNU `stat`), and **macOS and Linux drivers ship side-by-side without
+  interfering** — a macOS-only driver lives in `term/darwin/` and is simply not on
+  Linux's search path (`term/linux/` + `term/common/`), so it's never even sourced
+  there; no per-driver OS guard needed. A new driver auto-detects with **no edit to the
+  core** — drop a `term/common/<name>.sh` (or `term/<os>/<name>.sh`) implementing the
+  four `tdrv_*` functions plus an optional `tdrv_detect()` (return 0 when it recognises
+  the terminal; an optional `tdrv_priority()` 0–99 breaks ties). Notes: **WezTerm** is the easy
   case — `wezterm cli` reaches the always-on multiplexer over a unix socket
   (`$WEZTERM_UNIX_SOCKET`, exported into every pane), so a real in-window split works
   with **no config and no tty** (the dock split refocuses the session pane so your
@@ -111,12 +115,56 @@ Terminal are auto-detected, with a generic fallback for anything else.
   prune (>3 days idle, opportunistic from the Stop hook) is the backstop for
   sessions that exit without firing SessionEnd.
 
+## Prior art & comparison
+There's an active ecosystem of "what is each of my sessions doing" tools. They
+split along three axes: **what** they surface (a model-written brief vs. a raw
+status/event feed vs. usage metrics), **where** it renders (a docked terminal
+pane vs. the tmux status bar vs. a web dashboard vs. an in-app list), and whether
+they pay for a **per-turn model summary**. No tool I'm aware of combines all of
+this project's choices — a *structured, model-written brief*, *cost-gated*, in a
+*docked pane with pluggable terminal backends*.
+
+| Project | What it surfaces | Where it renders | Per-turn model brief | Terminal scope |
+|---|---|---|---|---|
+| **claude-context** (this) | Structured brief — State · Tried · Gotchas · Decisions · Next | **Docked pane** beside the session | ✅ Haiku, cost-gated; pluggable + API-direct path | iTerm2 · tmux · kitty · WezTerm · ghostty · Apple Terminal (+ generic) |
+| [Quickchat AI — tmux summaries][pa-quickchat] | 2–3 sentence summary | tmux **status bar** (2-line) | ✅ Haiku via `claude -p`, no gating | tmux only |
+| [tmux-agent-sidebar][pa-sidebar] | Raw activity: prompts, tool calls, wait reason, subagent tree, git/worktrees | Docked **tmux sidebar** | ❌ monitor only | tmux 3.0+ |
+| [tmux-agent-status][pa-status] | Working / idle / done / parked + fzf jumper | tmux sidebar + status line | ❌ | tmux |
+| [Claude Code Agent View][pa-agentview] (official) | Session list: last response, waiting?, timestamp; needs-you floats to top | In-app **CLI list** | ❌ shows last message | in-app (any terminal) |
+| [multi-agent observability][pa-observe] & forks | 12 lifecycle hook events, optional tool-I/O summary | **Web dashboard** | ⚠️ optional `--summarize` | web (browser) |
+| [claude-code-monitor][pa-monitor] | Status icons + last messages + focus-switch | TUI + **mobile web** | ❌ | iTerm2 / Terminal / Ghostty (focus) |
+| [ccusage][pa-ccusage] / [claude-statusline][pa-statusline] | Context % · cost · branch | bottom **status line** | ❌ | in-app |
+
+- **Closest in mechanism:** *Quickchat AI's tmux summaries* — same `Stop` hook →
+  Haiku → glanceable summary path. It renders a one-liner into a 2-line tmux
+  status bar (vs. this project's full structured brief in a real pane), is
+  tmux-only, and has no cost gating or API-direct cheaper path.
+- **Closest in form factor:** *tmux-agent-sidebar* — a real docked pane you tab
+  to, but it's a **monitor** (raw prompts/tool-calls/status), not a model-written
+  brief, and tmux-only.
+- **Official / first-party:** *Agent View* and the desktop app's recap solve the
+  same re-orientation problem at the fleet level (a list of last-messages, sorted
+  by who needs you) rather than a per-session brief docked beside the work.
+- **Different paradigm:** the observability dashboards stream granular hook events
+  to a browser — telemetry, not a glanceable "where was I" brief in the terminal.
+
+[pa-quickchat]: https://quickchat.ai/post/tmux-session-summaries-for-parallel-ai-agents
+[pa-sidebar]: https://github.com/hiroppy/tmux-agent-sidebar
+[pa-status]: https://github.com/samleeney/tmux-agent-status
+[pa-agentview]: https://claudefa.st/blog/guide/agents/agent-view
+[pa-observe]: https://github.com/disler/claude-code-hooks-multi-agent-observability
+[pa-monitor]: https://github.com/onikan27/claude-code-monitor
+[pa-ccusage]: https://ccusage.com/guide/statusline
+[pa-statusline]: https://felipeelias.github.io/2026/03/17/claude-statusline.html
+
 ## Files (mirror of the live `~/.claude` layout)
 ```
 claude/hooks/      task-prompt-hook.sh task-summary-hook.sh task-summary-worker.sh session-end-hook.sh
 claude/bin/        brief-open.sh brief-view.sh brief-prune.sh brief-summarize.sh brief-summarize-api.sh brief-term-profile.sh
 claude/bin/lib/    terminal-driver.sh                     (sourced: detect + dispatch)
-claude/bin/term/   iterm2.sh tmux.sh kitty.sh wezterm.sh ghostty.sh terminal.sh tabby.sh generic.sh   (terminal drivers)
+claude/bin/term/common/   tmux.sh kitty.sh wezterm.sh tabby.sh generic.sh   (cross-platform drivers)
+claude/bin/term/darwin/   iterm2.sh ghostty.sh terminal.sh                 (macOS-only drivers)
+claude/bin/term/linux/    (home for Linux-specific drivers; empty by default)
 claude/commands/   brief.md
 claude/glow-brief.json
 iterm2/DynamicProfiles/brief.json      (iterm2 dock profile: Default + 1.2x line spacing)
