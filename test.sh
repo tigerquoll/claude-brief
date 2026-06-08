@@ -14,6 +14,11 @@ set -u
 ROOT="$(cd "$(dirname "$0")" && pwd)"   # repo root (for the repo's install.sh)
 H="$HOME/.claude"; HOOKS="$H/hooks"; BIN="$H/bin"; ST="$H/state"; TP=/nonexistent.jsonl
 W="$HOOKS/task-summary-worker.sh"
+# brief-open now honours $CLAUDE_CODE_SESSION_ID (resort #0) as the authoritative
+# sid. Unset it so the pane/cwd/newest resolution tests are deterministic even when
+# this suite is run from inside a real Claude Code session (which exports it); the
+# resort-#0 test below sets it explicitly per-invocation.
+unset CLAUDE_CODE_SESSION_ID
 pass=0; fail=0
 ok(){ pass=$((pass+1)); printf '  \033[32mok\033[0m   %s\n' "$1"; }
 no(){ fail=$((fail+1)); printf '  \033[31mFAIL\033[0m %s — got [%s] want [%s]\n' "$1" "$2" "$3"; }
@@ -262,6 +267,20 @@ BRIEF_TERMINAL=fake "$BIN/brief-open.sh" close >/dev/null 2>&1     # close -> td
 is "close -> tdrv_close(FAKEID)" "$(grep -c '^close FAKEID' /tmp/t-term 2>/dev/null)" 1
 is "close clears session file"   "$([ -f "$ST/$S.brief.session" ] && echo kept || echo gone)" gone
 rm -f "$ST/panes/FP"
+
+echo "SESSION RESOLUTION — \$CLAUDE_CODE_SESSION_ID (resort #0) beats pane/cwd/newest"
+E=eeeeeeee-2222-3333-4444-555555555555
+# pane map points at $S, but the env var names a different (fresh) sid -> env wins.
+wipe; rm -f /tmp/t-term "$ST/$E".*; mkdir -p "$ST/panes"; printf '%s\n' "$S" > "$ST/panes/FP"
+CLAUDE_CODE_SESSION_ID="$E" BRIEF_TERMINAL=fake "$BIN/brief-open.sh" >/dev/null 2>&1
+is "env sid wins (dock opened for it)" "$([ -f "$ST/$E.brief.session" ] && echo yes || echo no)" yes
+is "pane-map sid NOT used"             "$([ -f "$ST/$S.brief.session" ] && echo used || echo no)" no
+# a non-UUID env value is rejected -> falls back to the pane map ($S).
+wipe; rm -f /tmp/t-term "$ST/$E".*; mkdir -p "$ST/panes"; printf '%s\n' "$S" > "$ST/panes/FP"
+CLAUDE_CODE_SESSION_ID="not-a-uuid" BRIEF_TERMINAL=fake "$BIN/brief-open.sh" >/dev/null 2>&1
+is "bad env ignored -> pane map"       "$([ -f "$ST/$S.brief.session" ] && echo yes || echo no)" yes
+is "bad env made no junk session"      "$([ -f "$ST/$E.brief.session" ] && echo made || echo no)" no
+wipe; rm -f "$ST/panes/FP" "$ST/$E".* /tmp/t-term
 
 echo "TERMINAL DRIVER — kitty routes kitty @ through \$KITTY_LISTEN_ON + injects PATH"
 # Hermetic: stub `kitty` on PATH so we can assert the driver's remote-control wiring
