@@ -162,6 +162,10 @@ this project's choices — a *structured, model-written brief*, *cost-gated*, in
 - **Different paradigm:** the observability dashboards stream granular hook events
   to a browser — telemetry, not a glanceable "where was I" brief in the terminal.
 
+## License
+
+BSD 3-Clause — see [LICENSE](LICENSE). © 2026 Dale &lt;tigerquoll@outlook.com&gt;.
+
 [pa-quickchat]: https://quickchat.ai/post/tmux-session-summaries-for-parallel-ai-agents
 [pa-sidebar]: https://github.com/hiroppy/tmux-agent-sidebar
 [pa-status]: https://github.com/samleeney/tmux-agent-status
