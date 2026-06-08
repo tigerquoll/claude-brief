@@ -12,9 +12,12 @@ Everything is shell. The hooks and terminal drivers are kept **bash-3.2-safe**
 Three Claude Code hooks plus the on-demand `/brief` command drive a per-session brief:
 
 - **`UserPromptSubmit` → `task-prompt-hook.sh`** — no model call. Maps the current
-  pane id and cwd → session id (`state/panes/<paneid>`, `state/cwds/<cwd>`) so
-  `/brief` can resolve which session it's in, and shifts last turn's summary into a
-  `▸ prev:` line.
+  pane id and cwd → session id (`state/panes/<paneid>`, `state/cwds/<cwd>`) as a
+  *fallback* resolver for `/brief`, and shifts last turn's summary into a `▸ prev:`
+  line. (`/brief` prefers the authoritative `$CLAUDE_CODE_SESSION_ID` Claude Code
+  exports to its shell; the pane/cwd maps plus a newest-brief last resort only cover
+  older Claude Code that doesn't set it — without #0, a fresh or just-`/clear`'d tab
+  would fall through to "newest brief" and dock another session.)
 - **`Stop` → `task-summary-hook.sh` → `task-summary-worker.sh`** — fires once per
   completed turn (cost-gated; trivial turns are skipped). The detached worker builds
   the prompt, calls the summariser, and writes the brief — so it adds no latency.
@@ -38,7 +41,7 @@ between the hooks, the worker, and the viewer:
 | `.brief.size` | viewer | worker | pane `"rows cols"`, so the brief is sized to fit |
 | `.brief.noauto` | viewer (`a` key) | Stop hook | end-of-turn auto-refresh turned off |
 | `.skipped` | Stop hook | viewer | trivial-turn skip counter |
-| `panes/<id>`, `cwds/<cwd>` | prompt hook | brief-open | pane / cwd → sid map |
+| `panes/<id>`, `cwds/<cwd>` | prompt hook | brief-open | pane / cwd → sid map (fallback; `$CLAUDE_CODE_SESSION_ID` wins) |
 
 ## Repo ↔ live layout
 
