@@ -23,10 +23,23 @@ state_dir="$HOME/.claude/state"
 
 # --- Resolve the session id of the pane we were invoked in ----------------
 sid=""; via=""
+# 0) AUTHORITATIVE: the session id Claude Code exports into the command's shell
+#    ($CLAUDE_CODE_SESSION_ID, set since CC 2.1.132). This is the session /brief was
+#    actually invoked in — correct for a FRESH or just-/clear'd session that has no
+#    brief or pane/cwd map yet, where the heuristics below would otherwise fall
+#    through to "newest brief" and dock SOME OTHER session. Only the env var is
+#    trusted here; everything else is a fallback for older Claude Code.
+if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+  case "$CLAUDE_CODE_SESSION_ID" in
+    *[!0-9a-fA-F-]*) : ;;                                   # not UUID-shaped -> ignore
+    *) sid="$CLAUDE_CODE_SESSION_ID"; via="env" ;;
+  esac
+fi
 # 1) terminal pane id (per-pane: correct even with two tabs in the same dir). The
 #    driver already returns a value safe to use; whitelist once more for the key.
+#    ALWAYS computed — $pane is also the split anchor passed to tdrv_open below.
 pane=$(tdrv_self_pane); pane=$(printf '%s' "$pane" | tr -dc '0-9A-Za-z%:_-')
-if [ -n "$pane" ]; then
+if [ -z "$sid" ] && [ -n "$pane" ]; then
   pf="$state_dir/panes/$pane"
   [ -f "$pf" ] && { sid=$(cat "$pf"); via="pane"; }
 fi
