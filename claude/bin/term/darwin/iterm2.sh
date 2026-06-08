@@ -1,7 +1,11 @@
 # iTerm2 driver (reference). The original brief-open/session-end osascript,
 # relocated behind the driver contract. iTerm2 3.6: create/split take no 'command'
-# param and return 'missing value', so we grab the new session and `write text`;
-# AppleScript `close` bypasses the "process running?" prompt (both verified).
+# param and return 'missing value', so we grab the new session and `write text`
+# `exec <viewer>` — exec REPLACES the login shell (like the Apple Terminal/ghostty
+# drivers) so a slow shell startup can't let the typed line race into the prompt and
+# stack onto your input, and no husk shell lingers after the viewer's `q`. The split
+# steals focus, so we re-select the anchor afterward (like ghostty/wezterm) — the
+# dock is click-to-focus. AppleScript `close` bypasses the "process running?" prompt.
 # Sourced by terminal-driver.sh — keep bash-3.2-safe.
 
 tdrv_name(){ printf 'iterm2'; }
@@ -33,19 +37,26 @@ tell application "iTerm2"
       end repeat
     end repeat
   end if
+  set focusBack to missing value
   if "$_mode" is "float" then
     create window with profile "$_prof"
     set newSess to (current session of current window)
   else if anchorSess is not missing value then
+    set focusBack to anchorSess
     tell anchorSess
       set newSess to (split vertically with profile "$_prof")
     end tell
   else
+    set focusBack to (current session of current window)
     tell current session of current window
       set newSess to (split vertically with profile "$_prof")
     end tell
   end if
-  tell newSess to write text "$_cmd"
+  -- exec REPLACES the login shell with the viewer: no husk shell, and a slow
+  -- shell startup can't let this typed line race into the prompt / stack onto input.
+  tell newSess to write text "exec $_cmd"
+  -- the split stole focus; hand it back to the session pane (dock is click-to-focus).
+  if focusBack is not missing value then tell focusBack to select
   return (id of newSess)
 end tell
 OSA
