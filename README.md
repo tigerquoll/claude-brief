@@ -1,12 +1,41 @@
 # claude-brief — live session-brief dock for Claude Code
 
-A per-session, auto-refreshing **brief** docked beside your Claude Code session —
-so you can tab between many concurrent sessions and instantly re-orient. The
-docking terminal is **pluggable**: iTerm2, tmux, kitty, WezTerm, ghostty, or Apple
+[![License: BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+![shell: bash](https://img.shields.io/badge/shell-bash-4EAA25.svg)
+![platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)
+![ShellCheck: clean](https://img.shields.io/badge/shellcheck-clean-brightgreen.svg)
+
+Juggling **multiple parallel Claude Code sessions** and losing track of what each
+one was doing? **claude-brief** docks a per-session, auto-refreshing **brief** —
+*State · Tried · Gotchas · Decisions · Next* — right beside your session, so you can
+tab between agents and instantly answer *"what was I doing here?"* without scrolling
+back through the transcript. A cheap, cost-gated **Haiku summary** regenerates each
+turn. The dock is **pluggable**: iTerm2, tmux, kitty, WezTerm, ghostty, and Apple
 Terminal are auto-detected, with a generic fallback for anything else.
 
-> **Hacking on it — architecture, the driver contract, adding a terminal?**
-> See **[DEVELOPING.md](DEVELOPING.md)**.
+<!-- DEMO: drop a screenshot or GIF of the dock beside a live session at docs/brief-dock.png
+     (a short GIF showing the brief refresh across a couple of turns is ideal), then
+     uncomment the block below:
+<p align="center">
+  <img src="docs/brief-dock.png" alt="claude-brief: a live session brief docked beside a Claude Code session" width="900">
+</p>
+-->
+
+## Quick start
+```bash
+git clone <repo-url> claude-brief && cd claude-brief
+./install.sh          # dependency check, then copies the scripts into ~/.claude
+```
+Add three hook lines to `~/.claude/settings.json` (it's kept out of the repo so no
+config leaks):
+```
+UserPromptSubmit -> bash "$HOME/.claude/hooks/task-prompt-hook.sh"
+Stop             -> bash "$HOME/.claude/hooks/task-summary-hook.sh"
+SessionEnd       -> bash "$HOME/.claude/hooks/session-end-hook.sh"
+```
+Then run **`/brief`** in any Claude Code session. Full details in
+[Install & setup](#install--setup); deps in [Requirements](#requirements). Hacking on
+it (architecture, the driver contract, adding a terminal) → **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Commands
 - **`/brief`** — open/refocus a docked split showing this session's live brief
