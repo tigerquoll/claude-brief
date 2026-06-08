@@ -1,4 +1,4 @@
-# claude-context — live session-brief dock for Claude Code
+# claude-brief — live session-brief dock for Claude Code
 
 A per-session, auto-refreshing **brief** docked beside your Claude Code session —
 so you can tab between many concurrent sessions and instantly re-orient. The
@@ -140,7 +140,7 @@ this project's choices — a *structured, model-written brief*, *cost-gated*, in
 
 | Project | What it surfaces | Where it renders | Per-turn model brief | Terminal scope |
 |---|---|---|---|---|
-| **claude-context** (this) | Structured brief — State · Tried · Gotchas · Decisions · Next | **Docked pane** beside the session | ✅ Haiku, cost-gated; pluggable + API-direct path | iTerm2 · tmux · kitty · WezTerm · ghostty · Apple Terminal (+ generic) |
+| **claude-brief** (this) | Structured brief — State · Tried · Gotchas · Decisions · Next | **Docked pane** beside the session | ✅ Haiku, cost-gated; pluggable + API-direct path | iTerm2 · tmux · kitty · WezTerm · ghostty · Apple Terminal (+ generic) |
 | [Quickchat AI — tmux summaries][pa-quickchat] | 2–3 sentence summary | tmux **status bar** (2-line) | ✅ Haiku via `claude -p`, no gating | tmux only |
 | [tmux-agent-sidebar][pa-sidebar] | Raw activity: prompts, tool calls, wait reason, subagent tree, git/worktrees | Docked **tmux sidebar** | ❌ monitor only | tmux 3.0+ |
 | [tmux-agent-status][pa-status] | Working / idle / done / parked + fzf jumper | tmux sidebar + status line | ❌ | tmux |

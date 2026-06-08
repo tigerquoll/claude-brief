@@ -1,4 +1,4 @@
-# Developing claude-context
+# Developing claude-brief
 
 The developer / architecture guide. To install and *use* the dock, see the
 [README](README.md).
