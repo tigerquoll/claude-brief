@@ -1,5 +1,5 @@
 ---
-description: Open/focus the docked pane showing this session's live brief
+description: Open/focus the docked pane showing this session's live summary brief
 argument-hint: "[float|refresh|close]"
 allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/bin/brief-open.sh:*)
 ---

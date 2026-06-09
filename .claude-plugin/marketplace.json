@@ -1,6 +1,6 @@
 {
   "name": "claude-brief",
-  "description": "The claude-brief plugin: a live, auto-refreshing per-session brief docked beside your Claude Code session.",
+  "description": "The claude-brief plugin: a live, auto-refreshing per-session summary brief docked beside your Claude Code terminal.",
   "owner": {
     "name": "Dale",
     "email": "tigerquoll@outlook.com",
@@ -10,7 +10,7 @@
     {
       "name": "claude-brief",
       "source": "./",
-      "description": "A live, auto-refreshing per-session brief docked beside your Claude Code session — for context-switching across parallel sessions."
+      "description": "A live, auto-refreshing per-session summary brief docked beside your Claude Code terminal — to quickly get up to speed when switching between parallel sessions."
     }
   ]
 }

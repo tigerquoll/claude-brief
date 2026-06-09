@@ -1,4 +1,4 @@
-# Claude Brief — live session-brief dock for Claude Code
+# Claude Brief — a live per-session summary brief beside your Claude Code terminal
 
 [![License: BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 [![downloads](https://img.shields.io/github/downloads/tigerquoll/claude-brief/total.svg)](https://github.com/tigerquoll/claude-brief/releases)
