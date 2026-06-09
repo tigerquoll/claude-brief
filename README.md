@@ -13,13 +13,11 @@ back through the transcript. A cheap, cost-gated **Haiku summary** regenerates e
 turn. The dock is **pluggable**: iTerm2, tmux, kitty, WezTerm, ghostty, and Apple
 Terminal are auto-detected, with a generic fallback for anything else.
 
-<!-- DEMO: drop a screenshot or GIF of the dock beside a live session at docs/brief-dock.png
-     (a short GIF showing the brief refresh across a couple of turns is ideal), then
-     uncomment the block below:
 <p align="center">
-  <img src="docs/brief-dock.png" alt="claude-brief: a live session brief docked beside a Claude Code session" width="900">
+  <img src="docs/brief-dock.png" alt="claude-brief: a live session brief docked beside a Claude Code session — the dock surfaces what's been decided, what's happening, and what's next" width="900">
+  <br>
+  <sub><i>The session (left) is a wall of code — the brief (right) keeps what's been <b>decided</b>, what's happening <b>now</b>, and what's <b>next</b> one glance away.</i></sub>
 </p>
--->
 
 ## Quick start
 ```bash
