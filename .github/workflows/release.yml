@@ -4,8 +4,12 @@
 # counted. The count powers the downloads badge and the stable install URL
 # https://github.com/<owner>/claude-brief/releases/latest/download/claude-brief.tar.gz
 #
+# Also keeps the plugin manifest version in lockstep with the tag: stamps it into the
+# tarball AND commits the bump to main, so /plugin marketplace installs see the new
+# version (marketplace users only get updates when plugin.json .version changes).
+#
 # Cut a release:
-#   git tag -a v0.4.0 -m "claude-brief v0.4.0" && git push origin v0.4.0
+#   git tag -a v1.1.0 -m "claude-brief v1.1.0" && git push origin v1.1.0
 name: release
 
 on:
@@ -13,35 +17,45 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write          # create the release + upload the asset
+  contents: write          # create the release + upload the asset + push the version bump
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main          # operate on main so the version-bump commit lands there
+          fetch-depth: 0      # full history + tags so `git archive <tag>` resolves
 
-      - name: Build a lean tarball (+ pointer back to the repo)
+      - name: Build a lean tarball (version stamped from the tag)
         run: |
           set -euo pipefail
-          ver="${GITHUB_REF_NAME#v}"                      # v0.4.0 -> 0.4.0
+          ver="${GITHUB_REF_NAME#v}"                      # v1.1.0 -> 1.1.0
           stage="claude-brief-${ver}"
           mkdir -p "$stage"
-          # tracked files minus .gitattributes export-ignore (docs, CI, dev tooling);
+          # tracked files AT THE TAG minus .gitattributes export-ignore (docs/CI/dev);
           # the asset NAME stays version-less so releases/latest/download/<name> is stable.
           git archive "${GITHUB_REF_NAME}" | tar -x -C "$stage"
-          # this archive is a lean snapshot — point users at the canonical project
+          # stamp the plugin manifest version to match the release tag
+          jq --arg v "$ver" '.version=$v' "$stage/.claude-plugin/plugin.json" > "$stage/.claude-plugin/plugin.json.t" \
+            && mv "$stage/.claude-plugin/plugin.json.t" "$stage/.claude-plugin/plugin.json"
+          # lean snapshot -> point users at the canonical project
           printf '%s\n' \
-            "claude-brief ${GITHUB_REF_NAME} — live session-brief dock for Claude Code" \
+            "claude-brief ${GITHUB_REF_NAME} — a live per-session summary brief for Claude Code" \
             "" \
             "This archive is a lean release snapshot (install payload only)." \
             "" \
-            "Install:" \
+            "Install into ~/.claude:" \
             "  ./install.sh        # dependency check, then copies into ~/.claude" \
             "Then add three hooks to ~/.claude/settings.json:" \
             '  UserPromptSubmit -> bash "$HOME/.claude/hooks/task-prompt-hook.sh"' \
             '  Stop             -> bash "$HOME/.claude/hooks/task-summary-hook.sh"' \
             '  SessionEnd       -> bash "$HOME/.claude/hooks/session-end-hook.sh"' \
+            "" \
+            "Or install it as a Claude Code plugin (hooks auto-wire):" \
+            "  /plugin marketplace add tigerquoll/claude-brief" \
+            "  /plugin install claude-brief@claude-brief" \
             "" \
             "Full docs, screenshots, source, and the latest release:" \
             "  https://github.com/tigerquoll/claude-brief" \
@@ -57,3 +71,16 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "${GITHUB_REF_NAME}" \
             --generate-notes
+
+      - name: Sync plugin.json version on main
+        run: |
+          set -euo pipefail
+          ver="${GITHUB_REF_NAME#v}"
+          cur=$(jq -r '.version // ""' .claude-plugin/plugin.json)
+          if [ "$cur" = "$ver" ]; then echo "plugin.json already $ver — nothing to do"; exit 0; fi
+          jq --arg v "$ver" '.version=$v' .claude-plugin/plugin.json > pj.t && mv pj.t .claude-plugin/plugin.json
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .claude-plugin/plugin.json
+          git commit -qm "chore: plugin.json version -> ${ver} [skip ci]"
+          git push origin main
