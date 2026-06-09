@@ -1,4 +1,4 @@
-# claude-brief — live session-brief dock for Claude Code
+# Claude Brief — live session-brief dock for Claude Code
 
 [![License: BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 [![downloads](https://img.shields.io/github/downloads/tigerquoll/claude-brief/total.svg)](https://github.com/tigerquoll/claude-brief/releases)
@@ -6,21 +6,24 @@
 ![platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)
 ![ShellCheck: clean](https://img.shields.io/badge/shellcheck-clean-brightgreen.svg)
 
-A long Claude Code session scrolls into a **wall of code and tool calls**, and the
-thread gets lost — what did we *decide*, what's it *doing right now*, what's *next*?
+I've been managing multiple concurrent claude code sessions for a while now, and I always 
+struggle a bit to get my bearings when I have a large number of sessions that have scrolled
+into a  wall of code and tool calls, and the thread gets lost - what path forward did I
+decide for the sessions?  What feature or bug is this screen working on? what's next?, 
+
+The problem really compounds the more Claude Code sessions you have active at once -
+every time you context-switch back to one, you cold-start — re-reading the transcript
+to try and remember where it was and what it had already decided. A brief docked beside each
+session turns that into a single glance, so tabbing between agents stops costing
+you the thread.
+
 **claude-brief** docks a per-session, auto-refreshing **brief** —
 *State · Tried · Gotchas · Decisions · Next* — right beside your session, so that
 thread is always one glance away instead of buried in the scrollback.
 
-It compounds the moment you're running **several Claude Code sessions at once**:
-every time you context-switch back to one, you cold-start — re-reading the transcript
-to remember where it was and what it had already decided. A brief docked beside each
-session turns that into a five-line glance, so tabbing between agents stops costing
-you the thread.
-
 A cheap, cost-gated **Haiku summary** regenerates each turn. The dock is
-**pluggable**: iTerm2, tmux, kitty, WezTerm, ghostty, and Apple Terminal are
-auto-detected, with a generic fallback for anything else.
+**pluggable**: iTerm2 (the most developed as its my daily driver),, tmux, 
+kitty, WezTerm, ghostty, and Apple Terminal are auto-detected, with a generic fallback for anything else. 
 
 <p align="center">
   <img src="docs/brief-dock.png" alt="claude-brief: a live session brief docked beside a Claude Code session — the dock surfaces what's been decided, what's happening, and what's next" width="900">
@@ -76,7 +79,7 @@ errors). It goes to the same gateway Claude Code already uses — or wherever yo
 ## Terminals
 Auto-detected; force one with `BRIEF_TERMINAL=<name>`. Most need no setup — a few do:
 
-- **iTerm2** (macOS) — real in-window split. No setup.
+- **iTerm2** (macOS) — real in-window split. No setup - the more well tested as its my daily driver.
 - **WezTerm** (macOS/Linux) — real split via `wezterm cli`, **no config and no tty
   needed** (the dock split refocuses your session pane). No setup.
 - **tmux** (macOS/Linux) — real split inside any host terminal (incl. Apple
