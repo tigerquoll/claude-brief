@@ -6,10 +6,10 @@
 ![platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)
 ![ShellCheck: clean](https://img.shields.io/badge/shellcheck-clean-brightgreen.svg)
 
-I've been managing multiple concurrent claude code sessions for a while now, and I always 
+I've been managing multiple concurrent Claude Code sessions for a while now, and I always
 struggle a bit to get my bearings when I have a large number of sessions that have scrolled
-into a  wall of code and tool calls, and the thread gets lost - what path forward did I
-decide for the sessions?  What feature or bug is this screen working on? what's next?, 
+into a wall of code and tool calls, and the thread gets lost — what path forward did I
+decide for the sessions? What feature or bug is this screen working on? What's next?
 
 The problem really compounds the more Claude Code sessions you have active at once -
 every time you context-switch back to one, you cold-start — re-reading the transcript
@@ -22,8 +22,8 @@ you the thread.
 thread is always one glance away instead of buried in the scrollback.
 
 A cheap, cost-gated **Haiku summary** regenerates each turn. The dock is
-**pluggable**: iTerm2 (the most developed as its my daily driver),, tmux, 
-kitty, WezTerm, ghostty, and Apple Terminal are auto-detected, with a generic fallback for anything else. 
+**pluggable**: iTerm2 (the most developed, as it's my daily driver), tmux,
+kitty, WezTerm, ghostty, and Apple Terminal are auto-detected, with a generic fallback for anything else.
 
 <p align="center">
   <img src="docs/brief-dock.png" alt="claude-brief: a live session brief docked beside a Claude Code session — the dock surfaces what's been decided, what's happening, and what's next" width="900">
@@ -79,7 +79,7 @@ errors). It goes to the same gateway Claude Code already uses — or wherever yo
 ## Terminals
 Auto-detected; force one with `BRIEF_TERMINAL=<name>`. Most need no setup — a few do:
 
-- **iTerm2** (macOS) — real in-window split. No setup - the more well tested as its my daily driver.
+- **iTerm2** (macOS) — real in-window split. No setup; the best-tested backend, as it's my daily driver.
 - **WezTerm** (macOS/Linux) — real split via `wezterm cli`, **no config and no tty
   needed** (the dock split refocuses your session pane). No setup.
 - **tmux** (macOS/Linux) — real split inside any host terminal (incl. Apple
