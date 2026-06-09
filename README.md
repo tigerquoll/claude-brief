@@ -5,13 +5,21 @@
 ![platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)
 ![ShellCheck: clean](https://img.shields.io/badge/shellcheck-clean-brightgreen.svg)
 
-Juggling **multiple parallel Claude Code sessions** and losing track of what each
-one was doing? **claude-brief** docks a per-session, auto-refreshing **brief** —
-*State · Tried · Gotchas · Decisions · Next* — right beside your session, so you can
-tab between agents and instantly answer *"what was I doing here?"* without scrolling
-back through the transcript. A cheap, cost-gated **Haiku summary** regenerates each
-turn. The dock is **pluggable**: iTerm2, tmux, kitty, WezTerm, ghostty, and Apple
-Terminal are auto-detected, with a generic fallback for anything else.
+A long Claude Code session scrolls into a **wall of code and tool calls**, and the
+thread gets lost — what did we *decide*, what's it *doing right now*, what's *next*?
+**claude-brief** docks a per-session, auto-refreshing **brief** —
+*State · Tried · Gotchas · Decisions · Next* — right beside your session, so that
+thread is always one glance away instead of buried in the scrollback.
+
+It compounds the moment you're running **several Claude Code sessions at once**:
+every time you context-switch back to one, you cold-start — re-reading the transcript
+to remember where it was and what it had already decided. A brief docked beside each
+session turns that into a five-line glance, so tabbing between agents stops costing
+you the thread.
+
+A cheap, cost-gated **Haiku summary** regenerates each turn. The dock is
+**pluggable**: iTerm2, tmux, kitty, WezTerm, ghostty, and Apple Terminal are
+auto-detected, with a generic fallback for anything else.
 
 <p align="center">
   <img src="docs/brief-dock.png" alt="claude-brief: a live session brief docked beside a Claude Code session — the dock surfaces what's been decided, what's happening, and what's next" width="900">
