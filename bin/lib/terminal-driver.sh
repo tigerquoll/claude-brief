@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/../.." && pwd)"   # plugin root (lib/.. /..)
 # Pluggable terminal "driver" layer for the brief dock. This file is SOURCED (not
 # executed) by brief-open.sh and the prompt/session-end hooks. It picks ONE
 # backend — by an explicit $BRIEF_TERMINAL name, else by auto-detection (the inner
@@ -30,7 +29,9 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/../.." && pwd)"   # plugin 
 # it to a whitelisted name (vs the summariser's arbitrary-path model) means we
 # never source code from outside that dir, even on a hostile value.
 
-_BRIEF_TERM_DIR="${BRIEF_TERM_DIR:-$ROOT/bin/term}"
+# term/ sits next to this lib (bin/lib/../term = bin/term); resolve it from our OWN
+# location so we never depend on (or clobber) the sourcing script's $ROOT.
+_BRIEF_TERM_DIR="${BRIEF_TERM_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/../term" && pwd)}"
 # OS bucket = lowercased `uname -s` (darwin/linux/…); sanitised so it can only ever
 # be a plain dir component. Drivers live in term/<os>/ (OS-specific) and term/common/
 # (cross-platform); see _brief_driver_file. This is what lets macOS + Linux drivers
