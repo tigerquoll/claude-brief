@@ -69,17 +69,17 @@ git clone https://github.com/tigerquoll/claude-brief.git && cd claude-brief && .
 Architecture, the driver contract, adding a terminal → **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Commands
-- **`/brief`** — open/refocus a docked split showing this session's live brief
-  (State · Tried · Gotchas · Decisions · Next). `/brief float` = separate window;
-  `/brief refresh` = regenerate the brief now instead of next turn;
-  `/brief close` = tear the dock down (clean, no-prompt close on every backend).
+- **`/claude-brief:brief`** — open/refocus a docked split showing this session's live brief
+  (State · Tried · Gotchas · Decisions · Next). `/claude-brief:brief float` = separate window;
+  `/claude-brief:brief refresh` = regenerate the brief now instead of next turn;
+  `/claude-brief:brief close` = tear the dock down (clean, no-prompt close on every backend).
 
   In the dock: `r` refresh now · `a` toggle end-of-turn auto-refresh · `i` toggle
   periodic refresh · `+`/`-` interval · `?` keys · `q` close.
 
 ## How it works
 A **`Stop`** hook runs a cheap Haiku summary each completed turn (cost-gated: it
-skips trivial turns) and writes `~/.claude/state/<sid>.brief.md`. `/brief` opens a
+skips trivial turns) and writes `~/.claude/state/<sid>.brief.md`. `/claude-brief:brief` opens a
 docked split (or a companion window) running the live viewer beside your session; it
 auto-refreshes at the end of each turn. A **`SessionEnd`** hook closes the dock and
 deletes that session's state, so nothing lingers on disk.
@@ -100,11 +100,11 @@ Auto-detected; force one with `BRIEF_TERMINAL=<name>`. Most need no setup — a 
   needed** (the dock split refocuses your session pane). No setup.
 - **tmux** (macOS/Linux) — real split inside any host terminal (incl. Apple
   Terminal); wins detection when `$TMUX` is set. No setup.
-- **ghostty** (macOS) — real in-window split via AppleScript; **first `/brief` needs
+- **ghostty** (macOS) — real in-window split via AppleScript; **first `/claude-brief:brief` needs
   a one-time macOS Automation approval**.
 - **Apple Terminal** (macOS) — no scriptable split panes, so the dock is a companion
   window beside the main one; first run needs the Automation approval.
-- **kitty** (macOS/Linux) — needs **socket remote control** (because `/brief` has no
+- **kitty** (macOS/Linux) — needs **socket remote control** (because `/claude-brief:brief` has no
   controlling tty, a tty-only setup can't be reached). Add to `kitty.conf`, then
   **restart kitty**:
   ```
@@ -113,10 +113,10 @@ Auto-detected; force one with `BRIEF_TERMINAL=<name>`. Most need no setup — a 
   enabled_layouts splits,stack
   ```
 - **Tabby** — *manual dock only.* Tabby has no scriptable split, no targetable/closable
-  CLI, and no AppleScript, so `/brief` can't auto-dock — it prints split-it-yourself
+  CLI, and no AppleScript, so `/claude-brief:brief` can't auto-dock — it prints split-it-yourself
   instructions and the `brief-view.sh <sid>` command. (A true dock would need a Tabby
   plugin.)
-- **Anything else → generic** — `/brief` prints the `brief-view.sh <sid>` command for
+- **Anything else → generic** — `/claude-brief:brief` prints the `brief-view.sh <sid>` command for
   you to run in a split you open yourself.
 
 ## Dock styling
