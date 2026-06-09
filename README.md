@@ -28,7 +28,7 @@ a cent or two when there's something new, and nothing when there isn't. The dock
 kitty, WezTerm, ghostty, and Apple Terminal are auto-detected, with a generic fallback for anything else.
 
 <p align="center">
-  <img src="docs/brief-dock.png" alt="claude-brief: a live session brief docked beside a Claude Code session — the dock surfaces what's been decided, what's happening, and what's next" width="900">
+  <img src="https://raw.githubusercontent.com/tigerquoll/claude-brief/main/docs/brief-dock.png" alt="claude-brief: a live session brief docked beside a Claude Code session — the dock surfaces what's been decided, what's happening, and what's next" width="900">
   <br>
   <sub><i>The session (left) is a wall of code — the brief (right) keeps what's been <b>decided</b>, what's happening <b>now</b>, and what's <b>next</b> one glance away.</i></sub>
 </p>
