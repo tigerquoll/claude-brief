@@ -1,7 +1,7 @@
 ---
-description: Open/focus the docked pane showing this session's live brief
+description: Open/focus the docked pane showing this session's live summary brief
 argument-hint: "[float|refresh|close]"
-allowed-tools: Bash(~/.claude/bin/brief-open.sh:*)
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/bin/brief-open.sh:*)
 ---
 This session's running brief (state · what's been tried · gotchas · decisions ·
 next) is shown in a docked pane — a side-by-side split (or, on Apple Terminal,
@@ -17,7 +17,7 @@ refresh from here but re-splits the pane. `/brief close` tears the dock down (a
 clean, no-prompt close on every backend — preferred over `q`/⌘W, which on ghostty
 leave an empty pane / pop a confirm).
 
-!`~/.claude/bin/brief-open.sh $ARGUMENTS`
+!`"${CLAUDE_PLUGIN_ROOT}/bin/brief-open.sh" $ARGUMENTS`
 
 Acknowledge in ONE short line that the brief dock is up — or, if the command
 above reported an error, relay that error. Do NOT reproduce the brief here.

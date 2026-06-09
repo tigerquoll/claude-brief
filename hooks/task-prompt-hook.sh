@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin root (or ~/.claude when installed)
 # UserPromptSubmit hook: shift the last result into "prev:" and mark the prompt
 # now executing in "now:". NO model call — pure text, free and immediate.
 # Writes:  goal / prev (last turn's summary) / now (⏳ current prompt).
@@ -22,7 +23,7 @@ umask 077   # state files can summarize sensitive session content -> keep them p
 # from the pane's shell, so they compute the same key. Done before the synthetic-
 # prompt filter below so the map stays fresh even on /brief itself.
 cwd=$(printf '%s' "$input" | jq -r '.cwd // empty')
-. "$HOME/.claude/bin/lib/terminal-driver.sh"
+. "$ROOT/bin/lib/terminal-driver.sh"
 pane=$(tdrv_self_pane); pane=$(printf '%s' "$pane" | tr -dc '0-9A-Za-z%:_-')   # fs-safe key
 if [ -n "$pane" ]; then
   pane_dir="$HOME/.claude/state/panes"; mkdir -p "$pane_dir"

@@ -3,7 +3,7 @@
 # && || assertion idioms, which trip these info checks throughout — silence them
 # file-wide rather than per-line.
 # shellcheck disable=SC2030,SC2031,SC2015,SC2162
-# Regression tests for the brief-dock scripts. Run after ./install.sh (or ./sync.sh)
+# Regression tests for the brief-dock scripts. Run after ./install.sh
 # — it exercises the LIVE ~/.claude scripts. Integration-style: drives the real
 # worker/hooks with throwaway (hex-UUID) session ids and FAKE summarisers placed
 # under ~/.claude/bin (so they pass the path confinement), checking outcomes/state.
@@ -96,7 +96,7 @@ rm -f "$out1" "$ww"
 
 echo "STOP HOOK — cost gate + noauto (stubbed worker launch)"
 stub=/tmp/t-stop.sh
-perl -0777 -pe 's/nohup "\$HOME\/\.claude\/hooks\/task-summary-worker\.sh".*?&\n/echo SPAWNED > \$SENTINEL\n/s' "$HOOKS/task-summary-hook.sh" > "$stub"
+perl -0777 -pe 's/nohup "\$ROOT\/hooks\/task-summary-worker\.sh".*?&\n/echo SPAWNED > \$SENTINEL\n/s' "$HOOKS/task-summary-hook.sh" > "$stub"
 run_stop(){ rm -f /tmp/t-spawn "$ST/$S.tlines" "$ST/$S.skipped"; export SENTINEL=/tmp/t-spawn
   printf '{"session_id":"%s","transcript_path":"%s"}' "$S" "$1" | bash "$stub"
   [ -f /tmp/t-spawn ] && echo spawned || echo skipped; }

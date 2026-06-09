@@ -1,0 +1,41 @@
+# Lint + validate on every push to main and every PR, so a change can't silently
+# break the scripts or the plugin manifests. Kept fast and dependency-light; the full
+# regression suite (./test.sh) is run locally (it needs glow/tmux + an installed tree).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y shellcheck >/dev/null
+          shellcheck -s bash bin/*.sh bin/lib/*.sh bin/term/*/*.sh hooks/*.sh install.sh test.sh
+
+      - name: Syntax check (bash -n)
+        run: |
+          for f in bin/*.sh bin/lib/*.sh bin/term/*/*.sh hooks/*.sh install.sh test.sh; do
+            bash -n "$f"
+          done
+
+      - name: Validate JSON manifests
+        run: |
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json; do
+            jq -e . "$f" >/dev/null && echo "ok: $f"
+          done
+
+      - name: claude plugin validate
+        continue-on-error: true     # informational — don't block PRs on CLI install/auth hiccups
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude plugin validate .

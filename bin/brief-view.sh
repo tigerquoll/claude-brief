@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin root (or ~/.claude when installed)
 # Live viewer for a session brief, run inside the docked pane that /brief opens
 # (terminal-agnostic — the dock is created by the pluggable driver layer). Full-
 # redraws only when the brief changes (fork-free `-nt` test)
@@ -10,7 +11,7 @@
 sid="$1"
 [ -z "$sid" ] && { echo "brief-view: no session id given"; exit 1; }
 case "$sid" in *[!0-9a-fA-F-]*) echo "brief-view: invalid (non-UUID) session id"; exit 1 ;; esac
-. "$HOME/.claude/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
+. "$ROOT/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 
 state_dir="$HOME/.claude/state"
 brief="$state_dir/$sid.brief.md"
@@ -52,7 +53,7 @@ render() {
   if command -v glow >/dev/null 2>&1; then
     # glow word-wraps at wrapw (breaks at spaces -> identifiers stay whole); _ifmt
     # adds the gutter/hang indent. render() re-runs on resize, so it reflows.
-    gs="$HOME/.claude/glow-brief.json"
+    gs="$ROOT/glow-brief.json"
     # CLICOLOR_FORCE: glow strips color when its stdout is a pipe (it is -> _ifmt)
     # </dev/null so glow never blocks reading stdin (it does when stdin is a pipe)
     if [ -f "$gs" ]; then CLICOLOR_FORCE=1 glow -s "$gs" -w "$wrapw" "$brief" </dev/null | _ifmt
@@ -101,7 +102,7 @@ agebucket() {
 do_refresh() {
   [ -n "$tp" ] || tp=$(ls -t "$HOME"/.claude/projects/*/"$sid".jsonl 2>/dev/null | head -1)
   [ -n "$tp" ] || return 1
-  nohup "$HOME/.claude/hooks/task-summary-worker.sh" "$sid" "$tp" >/dev/null 2>&1 &
+  nohup "$ROOT/hooks/task-summary-worker.sh" "$sid" "$tp" >/dev/null 2>&1 &
   return 0
 }
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin root (or ~/.claude when installed)
 # Open — or re-focus + reload — the docked pane showing this session's live brief.
 # Singleton: re-running closes the old dock and creates a fresh one running the
 # latest viewer. Terminal-agnostic via the pluggable driver layer
@@ -19,7 +20,7 @@ case "$arg" in
 esac
 
 state_dir="$HOME/.claude/state"
-. "$HOME/.claude/bin/lib/terminal-driver.sh"   # provides tdrv_name/self_pane/open/close
+. "$ROOT/bin/lib/terminal-driver.sh"   # provides tdrv_name/self_pane/open/close
 
 # --- Resolve the session id of the pane we were invoked in ----------------
 sid=""; via=""
@@ -64,7 +65,7 @@ case "$sid" in *[!0-9a-fA-F-]*) echo "brief: refusing — session id is not UUID
 # only on the next completed turn.
 if [ "$refresh" = 1 ]; then
   tp=$(ls -t "$HOME"/.claude/projects/*/"$sid".jsonl 2>/dev/null | head -1)
-  [ -n "$tp" ] && nohup "$HOME/.claude/hooks/task-summary-worker.sh" "$sid" "$tp" >/dev/null 2>&1 &
+  [ -n "$tp" ] && nohup "$ROOT/hooks/task-summary-worker.sh" "$sid" "$tp" >/dev/null 2>&1 &
 fi
 
 sess_file="$state_dir/$sid.brief.session"   # "<driver> <dock-pane-id>"
@@ -79,7 +80,7 @@ if [ -f "$sess_file" ]; then
   case "$oldname" in *[!a-z0-9]*) oldname="" ;; esac  # only honour a clean driver name
   if [ -n "$oldname" ] && [ -n "$oldid" ]; then
     # shellcheck disable=SC2034  # BRIEF_TERMINAL is read by the sourced terminal-driver.sh
-    ( BRIEF_TERMINAL="$oldname"; . "$HOME/.claude/bin/lib/terminal-driver.sh"; tdrv_close "$oldid" )
+    ( BRIEF_TERMINAL="$oldname"; . "$ROOT/bin/lib/terminal-driver.sh"; tdrv_close "$oldid" )
   fi
 fi
 
@@ -91,7 +92,7 @@ if [ "$mode" = close ]; then
   exit 0
 fi
 
-new_id=$(tdrv_open "$mode" "$pane" "$HOME/.claude/bin/brief-view.sh" "$sid")
+new_id=$(tdrv_open "$mode" "$pane" "$ROOT/bin/brief-view.sh" "$sid")
 
 if [ -n "$new_id" ]; then
   printf '%s %s\n' "$(tdrv_name)" "$new_id" > "$sess_file"
@@ -100,7 +101,7 @@ elif [ "$(tdrv_name)" = generic ] || [ "$(tdrv_name)" = tabby ]; then
   # generic + tabby can't script a dock; the driver may have printed a terminal-
   # specific hint to stderr — print the exact viewer command to run by hand.
   echo "brief: no auto-dock for this terminal — open the viewer in a split/window you create:"
-  echo "       $HOME/.claude/bin/brief-view.sh $sid"
+  echo "       $ROOT/bin/brief-view.sh $sid"
   exit 0
 else
   echo "brief: couldn't open the dock (term=$(tdrv_name), sid=${sid:0:8}, via=$via, mode=$mode)"

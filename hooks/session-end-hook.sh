@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin root (or ~/.claude when installed)
 # SessionEnd hook: when a Claude session ends, close its brief dock pane (if one
 # is open) and DELETE all of that session's brief state — the summary content
 # (<sid>.brief.md / .task) and the ephemeral dock/accounting files — so nothing
@@ -22,7 +23,7 @@ dname=${sess%% *}; did=${sess#* }
 case "$dname" in *[!a-z0-9]*) dname="" ;; esac        # only honour a clean driver name
 if [ -n "$dname" ] && [ -n "$did" ]; then
   # shellcheck disable=SC2034  # BRIEF_TERMINAL is read by the sourced terminal-driver.sh
-  ( BRIEF_TERMINAL="$dname"; . "$HOME/.claude/bin/lib/terminal-driver.sh"; tdrv_close "$did" ) &
+  ( BRIEF_TERMINAL="$dname"; . "$ROOT/bin/lib/terminal-driver.sh"; tdrv_close "$did" ) &
 fi
 
 # Remove ALL of this session's brief state (content + ephemeral), not just the

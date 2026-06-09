@@ -65,8 +65,8 @@ check_deps() {
   [ "$have_term" = 1 ] || printf '  ~ %-10s none detected — only the generic paste-the-viewer fallback works\n' backends
   # Which driver auto-detection picks in THIS terminal right now (also smoke-tests
   # the driver library against the repo's drivers).
-  if [ -f "$root/claude/bin/lib/terminal-driver.sh" ]; then
-    local d; d=$( export BRIEF_TERM_DIR="$root/claude/bin/term"; . "$root/claude/bin/lib/terminal-driver.sh" >/dev/null 2>&1; tdrv_name 2>/dev/null )
+  if [ -f "$root/bin/lib/terminal-driver.sh" ]; then
+    local d; d=$( export BRIEF_TERM_DIR="$root/bin/term"; . "$root/bin/lib/terminal-driver.sh" >/dev/null 2>&1; tdrv_name 2>/dev/null )
     [ -n "$d" ] && printf '  \xe2\x86\x92 active driver here: %s\n' "$d"
   fi
 
@@ -120,17 +120,17 @@ fi
 # --- install ----------------------------------------------------------------
 echo
 mkdir -p ~/.claude/hooks ~/.claude/bin ~/.claude/bin/lib ~/.claude/bin/term ~/.claude/commands
-cp "$root"/claude/hooks/*.sh ~/.claude/hooks/
-cp "$root"/claude/bin/*.sh ~/.claude/bin/
-cp "$root"/claude/bin/lib/*.sh ~/.claude/bin/lib/
+cp "$root"/hooks/*.sh ~/.claude/hooks/
+cp "$root"/bin/*.sh ~/.claude/bin/
+cp "$root"/bin/lib/*.sh ~/.claude/bin/lib/
 rm -f ~/.claude/bin/term/*.sh 2>/dev/null   # migration: drop pre-subdir flat drivers
 for _d in common darwin linux; do            # term/<os>/ + term/common/ (see terminal-driver.sh)
-  ls "$root"/claude/bin/term/"$_d"/*.sh >/dev/null 2>&1 || continue
+  ls "$root"/bin/term/"$_d"/*.sh >/dev/null 2>&1 || continue
   mkdir -p ~/.claude/bin/term/"$_d"
-  cp "$root"/claude/bin/term/"$_d"/*.sh ~/.claude/bin/term/"$_d"/
+  cp "$root"/bin/term/"$_d"/*.sh ~/.claude/bin/term/"$_d"/
 done
-cp "$root"/claude/commands/*.md ~/.claude/commands/
-cp "$root"/claude/glow-brief.json ~/.claude/
+cp "$root"/commands/*.md ~/.claude/commands/
+cp "$root"/glow-brief.json ~/.claude/
 # iTerm2 dock profile — only on macOS, and only if present in the repo.
 if [ "$(uname -s)" = Darwin ] && [ -f "$root"/iterm2/DynamicProfiles/brief.json ]; then
   mkdir -p "$HOME/Library/Application Support/iTerm2/DynamicProfiles"
