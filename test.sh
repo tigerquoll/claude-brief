@@ -3,7 +3,7 @@
 # && || assertion idioms, which trip these info checks throughout — silence them
 # file-wide rather than per-line.
 # shellcheck disable=SC2030,SC2031,SC2015,SC2162
-# Regression tests for the brief-dock scripts. Run after ./install.sh (or ./sync.sh)
+# Regression tests for the brief-dock scripts. Run after ./install.sh
 # — it exercises the LIVE ~/.claude scripts. Integration-style: drives the real
 # worker/hooks with throwaway (hex-UUID) session ids and FAKE summarisers placed
 # under ~/.claude/bin (so they pass the path confinement), checking outcomes/state.
