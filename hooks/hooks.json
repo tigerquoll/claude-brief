@@ -1,5 +1,8 @@
 {
   "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-hook.sh\"" } ] }
+    ],
     "UserPromptSubmit": [
       { "hooks": [ { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/task-prompt-hook.sh\"" } ] }
     ],
