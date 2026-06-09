@@ -30,11 +30,6 @@ auto-detected, with a generic fallback for anything else.
 
 ## Quick start
 ```bash
-git clone https://github.com/tigerquoll/claude-brief.git && cd claude-brief
-./install.sh          # dependency check, then copies the scripts into ~/.claude
-```
-*Or grab the latest release tarball instead of cloning:*
-```bash
 curl -fsSL https://github.com/tigerquoll/claude-brief/releases/latest/download/claude-brief.tar.gz \
   | tar xz && cd claude-brief-*/ && ./install.sh
 ```
@@ -46,8 +41,13 @@ Stop             -> bash "$HOME/.claude/hooks/task-summary-hook.sh"
 SessionEnd       -> bash "$HOME/.claude/hooks/session-end-hook.sh"
 ```
 Then run **`/brief`** in any Claude Code session. Full details in
-[Install & setup](#install--setup); deps in [Requirements](#requirements). Hacking on
-it (architecture, the driver contract, adding a terminal) → **[DEVELOPING.md](DEVELOPING.md)**.
+[Install & setup](#install--setup); deps in [Requirements](#requirements).
+
+**Developing or hacking on it?** Clone instead — that installs your working checkout:
+```bash
+git clone https://github.com/tigerquoll/claude-brief.git && cd claude-brief && ./install.sh
+```
+Architecture, the driver contract, adding a terminal → **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Commands
 - **`/brief`** — open/refocus a docked split showing this session's live brief
