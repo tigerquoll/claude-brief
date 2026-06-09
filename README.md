@@ -104,6 +104,14 @@ Auto-detected; force one with `BRIEF_TERMINAL=<name>`. Most need no setup — a 
   you to run in a split you open yourself.
 
 ## Dock styling
+**1.2× line spacing** noticeably improves reading the brief *at a glance* — the extra
+breathing room lets you take in State · Decisions · Next in a single look rather than
+line by line. That's why the dock leans on it, and why iTerm2 (my daily driver) gets
+the most complete treatment: it can scope that spacing to **just the dock**, leaving
+your session pane untouched. The snag is that most other terminals can't control line
+spacing per-pane at all — so reproducing this elsewhere ranges from a global-only
+compromise to outright impossible, as the table below lays out.
+
 The dock can use a **`brief` profile** = your profile + 1.2× line spacing. iTerm2
 ships `iterm2/DynamicProfiles/brief.json` (auto-loaded; inherits your Default profile
 *live*). Apple Terminal generates one at install via `bin/brief-term-profile.sh` —
