@@ -204,6 +204,21 @@ than the CLI; see the README for the user-facing opt-in).
   `.shellcheckrc` carries the project-wide disables (with reasons); narrow cases have
   inline `# shellcheck disable=` directives. Run it as a pre-commit gate.
 
+## Releases & metrics
+
+**Cut a release** by pushing a version tag — the [`release` workflow](.github/workflows/release.yml)
+builds `claude-brief.tar.gz` and attaches it to a GitHub Release:
+```
+git tag -a v0.4.0 -m "claude-brief v0.4.0" && git push origin v0.4.0
+```
+The *attached asset* (not the auto-generated "Source code" archive) is what GitHub
+counts in `download_count`, which drives the README downloads badge and the stable
+`releases/latest/download/claude-brief.tar.gz` install URL.
+
+**Clone/view traffic** is snapshotted daily by the [`traffic` workflow](.github/workflows/traffic.yml)
+onto the orphan `traffic` branch, so the history outlives GitHub's 14-day window.
+One-time `TRAFFIC_TOKEN` setup: [traffic/README.md](traffic/README.md).
+
 ## Design notes
 
 Deeper gotchas — iTerm2 / Apple Terminal AppleScript quirks, headless-render traps,

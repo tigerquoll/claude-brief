@@ -1,0 +1,42 @@
+# Cut a GitHub Release when you push a version tag (vX.Y.Z): build a source tarball
+# and attach it as a release ASSET. That attached asset is the thing GitHub counts in
+# download_count — the auto-generated "Source code (zip/tar.gz)" archives are NOT
+# counted. The count powers the downloads badge and the stable install URL
+# https://github.com/<owner>/claude-brief/releases/latest/download/claude-brief.tar.gz
+#
+# Cut a release:
+#   git tag -a v0.4.0 -m "claude-brief v0.4.0" && git push origin v0.4.0
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write          # create the release + upload the asset
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build tarball
+        run: |
+          set -euo pipefail
+          ver="${GITHUB_REF_NAME#v}"                      # v0.4.0 -> 0.4.0
+          # tracked files only (no .git), extracted into a versioned dir; the asset
+          # NAME stays version-less so releases/latest/download/<name> is stable.
+          git archive --format=tar.gz \
+            --prefix="claude-brief-${ver}/" \
+            -o claude-brief.tar.gz "${GITHUB_REF_NAME}"
+
+      - name: Publish release + upload asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" claude-brief.tar.gz \
+            --repo "${{ github.repository }}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes

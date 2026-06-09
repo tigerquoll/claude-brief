@@ -1,6 +1,7 @@
 # claude-brief — live session-brief dock for Claude Code
 
 [![License: BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+[![downloads](https://img.shields.io/github/downloads/tigerquoll/claude-brief/total.svg)](https://github.com/tigerquoll/claude-brief/releases)
 ![shell: bash](https://img.shields.io/badge/shell-bash-4EAA25.svg)
 ![platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)
 ![ShellCheck: clean](https://img.shields.io/badge/shellcheck-clean-brightgreen.svg)
@@ -29,8 +30,13 @@ auto-detected, with a generic fallback for anything else.
 
 ## Quick start
 ```bash
-git clone <repo-url> claude-brief && cd claude-brief
+git clone https://github.com/tigerquoll/claude-brief.git && cd claude-brief
 ./install.sh          # dependency check, then copies the scripts into ~/.claude
+```
+*Or grab the latest release tarball instead of cloning:*
+```bash
+curl -fsSL https://github.com/tigerquoll/claude-brief/releases/latest/download/claude-brief.tar.gz \
+  | tar xz && cd claude-brief-*/ && ./install.sh
 ```
 Add three hook lines to `~/.claude/settings.json` (it's kept out of the repo so no
 config leaks):
