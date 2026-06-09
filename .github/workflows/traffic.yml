@@ -1,11 +1,14 @@
-# Daily snapshot of GitHub "traffic" (clones + views) into the repo, so the data
-# survives past GitHub's rolling 14-day window (Insights -> Traffic only keeps 14
-# days, and only repo admins can see it). Each run fetches the last 14 days of
-# per-day counts and merges them into traffic/*.json keyed by date — idempotent, so
-# a missed run is recovered on the next one (the 14-day window is the buffer).
+# Daily snapshot of GitHub "traffic" (clones + views) into a dedicated `traffic`
+# branch, so the data survives past GitHub's rolling 14-day window WITHOUT cluttering
+# main's history. Each run fetches the last 14 days of per-day counts and merges them
+# into clones.json / views.json keyed by date — idempotent, so a missed run is
+# recovered next time (the 14-day window is the buffer).
+#
+# This workflow file must live on the DEFAULT branch (scheduled runs only fire from
+# there); only the DATA goes to the `traffic` branch.
 #
 # AUTH: the Traffic API needs PUSH access AND the built-in GITHUB_TOKEN cannot read
-# it, so this uses a PAT stored as the TRAFFIC_TOKEN secret. Setup: traffic/README.md.
+# it, so it reads via a PAT stored as the TRAFFIC_TOKEN secret. Setup: traffic/README.md.
 name: traffic
 
 on:
@@ -14,39 +17,51 @@ on:
   workflow_dispatch: {}      # plus a manual "Run workflow" button
 
 permissions:
-  contents: write            # to commit the merged data back
+  contents: write            # for github.token to push the data branch
 
 jobs:
   snapshot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Fetch + merge clones and views
+      - name: Snapshot traffic into the `traffic` branch
         env:
-          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}   # PAT (repo scope) — GITHUB_TOKEN can't read traffic
+          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}     # PAT (repo scope) — reads the Traffic API
+          PUSH_TOKEN: ${{ github.token }}            # built-in token — pushes the data branch
         run: |
           set -euo pipefail
-          mkdir -p traffic
+          repo="${{ github.repository }}"
+
+          # Work in a throwaway clone holding ONLY the data branch, so main is never
+          # touched. Check out `traffic` if it exists, else start it as an orphan.
+          dir="$(mktemp -d)"; cd "$dir"
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${PUSH_TOKEN}@github.com/${repo}.git"
+          if git ls-remote --exit-code --heads origin traffic >/dev/null 2>&1; then
+            git fetch -q --depth=1 origin traffic:traffic
+            git checkout -q traffic
+          else
+            git checkout -q --orphan traffic
+          fi
+
+          # Fetch each metric, fold the API's per-day array into {date: {count, uniques}},
+          # and merge into the running history (today's values win), kept sorted by date.
           for kind in clones views; do
-            gh api "repos/${{ github.repository }}/traffic/$kind" > "/tmp/$kind.json"
-            [ -f "traffic/$kind.json" ] || echo '{}' > "traffic/$kind.json"
-            # API's per-day array -> { "YYYY-MM-DD": {count, uniques} }
+            gh api "repos/${repo}/traffic/${kind}" > "/tmp/${kind}.json"
+            [ -f "${kind}.json" ] || echo '{}' > "${kind}.json"
             jq --arg k "$kind" '
               (.[$k] // [])
               | map({ (.timestamp[0:10]): {count: .count, uniques: .uniques} })
               | add // {}
-            ' "/tmp/$kind.json" > "/tmp/$kind.day.json"
-            # merge into history (today's values win), keep it sorted by date
+            ' "/tmp/${kind}.json" > "/tmp/${kind}.day.json"
             jq -s '.[0] * .[1] | to_entries | sort_by(.key) | from_entries' \
-              "traffic/$kind.json" "/tmp/$kind.day.json" > "/tmp/$kind.merged.json"
-            mv "/tmp/$kind.merged.json" "traffic/$kind.json"
+              "${kind}.json" "/tmp/${kind}.day.json" > "/tmp/${kind}.merged.json"
+            mv "/tmp/${kind}.merged.json" "${kind}.json"
           done
 
-      - name: Commit if changed
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add traffic/clones.json traffic/views.json
-          git diff --cached --quiet || git commit -m "traffic: snapshot $(date -u +%F)"
-          git push
+          git add clones.json views.json
+          git diff --cached --quiet || {
+            git commit -q -m "traffic: snapshot $(date -u +%F)"
+            git push -q origin traffic
+          }

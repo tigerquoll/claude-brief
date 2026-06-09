@@ -3,7 +3,10 @@
 GitHub's traffic stats (clones, views) are a rolling **14-day** window, visible only
 to repo admins under **Insights → Traffic**. The
 [`traffic` workflow](../.github/workflows/traffic.yml) snapshots them **daily** and
-merges them here, so the history accrues indefinitely.
+appends them to a dedicated **`traffic` branch**, so the history accrues indefinitely
+without cluttering `main`.
+
+The data lives on the orphan **`traffic`** branch (data only, at its root):
 
 - **`clones.json`** / **`views.json`** — `{ "YYYY-MM-DD": { "count": N, "uniques": M } }`,
   one entry per day. `count` = total clones/views; `uniques` = distinct
@@ -21,4 +24,5 @@ so add a token:
 2. Repo → **Settings → Secrets and variables → Actions → New repository secret**,
    named **`TRAFFIC_TOKEN`**.
 3. Ensure Actions are enabled. The workflow runs daily and has a manual **Run
-   workflow** button (Actions tab) for the first snapshot.
+   workflow** button (Actions tab) for the first snapshot — which also creates the
+   `traffic` branch.
