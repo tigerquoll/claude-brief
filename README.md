@@ -42,6 +42,10 @@ kitty, WezTerm, ghostty, and Apple Terminal are auto-detected, with a generic fa
 ```
 Then run **`/claude-brief:brief`** in any session.
 
+> **Prereqs:** `bash ≥ 5` and `jq` are required (and `glow` for rich rendering). `/plugin install`
+> runs no dependency check, so install them first — `brew install bash jq glow` — otherwise the dock
+> just flags whatever's missing at session start. Details: [Requirements](#requirements).
+
 **Or install into `~/.claude`** (no plugin system; the command stays `/brief`). Pick *one*
 of these — the plugin and `install.sh` wire the same hooks, so running both double-fires:
 ```bash
@@ -174,7 +178,8 @@ uses. Two opt-ins:
 bash ≥ 5 for the dock viewer (`brew install bash`) · `jq` · `perl` (built-in) · the
 `claude` CLI · **one terminal** from [Terminals](#terminals) above. Optional: `glow`
 (`brew install glow`, recommended) or `bat` for nicer rendering. The hooks + drivers
-themselves are bash-3.2-safe.
+themselves are bash-3.2-safe. `./install.sh` checks these up front; installed as a plugin,
+the SessionStart hook flags anything missing (required deps keep flagging until installed).
 
 ## Install & setup
 - `./install.sh` — runs a **dependency check**, then copies repo → `~/.claude` (+ the

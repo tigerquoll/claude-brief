@@ -7,6 +7,7 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin roo
 # is the backstop for sessions that exit without firing SessionEnd. Detached
 # osascript so it never blocks.
 [ -n "$CLAUDE_TASK_SUMMARY" ] && exit 0   # ignore the summarizer's inner claude
+command -v jq >/dev/null 2>&1 || exit 0   # no jq: can't parse the transcript (the SessionStart hook tells the user)
 
 input=$(cat)
 sid=$(printf '%s' "$input" | jq -r '.session_id // empty')
