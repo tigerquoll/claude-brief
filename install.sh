@@ -14,6 +14,12 @@ root="$(cd "$(dirname "$0")" && pwd)"
 # Returns non-zero if any REQUIRED dependency is missing.
 check_deps() {
   local missing=0 entry cmd hint
+  # Homebrew isn't guaranteed on macOS, so don't hand out `brew install …` blindly:
+  # suggest it only when brew is actually present, else point at how to get it.
+  brewtip() {  # $1 = space-separated package(s) -> an honest install hint
+    if command -v brew >/dev/null 2>&1; then printf 'brew install %s' "$1"
+    else printf 'install %s (Homebrew not found — https://brew.sh)' "$1"; fi
+  }
 
   # Platform — the iTerm2/Apple-Terminal drivers are macOS-only (osascript, BSD
   # stat -f/ls -t); the tmux/kitty/wezterm drivers also work on Linux. So macOS is
@@ -31,7 +37,7 @@ check_deps() {
   if [ "${BASH_VERSINFO[0]:-0}" -ge 5 ]; then
     printf '  \xe2\x9c\x93 %-10s %s\n' bash "$BASH_VERSION"
   else
-    printf '  \xe2\x9c\x97 %-10s %s — need >= 5 for the dock viewer: brew install bash\n' bash "${BASH_VERSION:-unknown}"
+    printf '  \xe2\x9c\x97 %-10s %s — need >= 5 for the dock viewer: %s\n' bash "${BASH_VERSION:-unknown}" "$(brewtip bash)"
     missing=1
   fi
 
@@ -72,7 +78,7 @@ check_deps() {
 
   # Required external commands (cmd:install-hint) — needed on EVERY platform.
   for entry in \
-    "jq:brew install jq" \
+    "jq:$(brewtip jq)" \
     "claude:Claude Code CLI — install per your usual method" \
     "perl:preinstalled on macOS — check your PATH (used for the summarizer watchdog + rendering)"
   do
@@ -100,9 +106,9 @@ check_deps() {
   if command -v glow >/dev/null 2>&1; then
     printf '  \xe2\x9c\x93 %-10s %s\n' glow "$(command -v glow)"
   elif command -v bat >/dev/null 2>&1; then
-    printf '  ~ %-10s glow absent; using bat fallback (brew install glow for best output)\n' bat
+    printf '  ~ %-10s glow absent; bat fallback in use — %s for best output\n' bat "$(brewtip glow)"
   else
-    printf '  ~ %-10s no glow/bat; plain-text fallback (brew install glow recommended)\n' renderer
+    printf '  ~ %-10s no glow/bat; plain-text fallback — %s recommended\n' renderer "$(brewtip glow)"
   fi
 
   return $missing
