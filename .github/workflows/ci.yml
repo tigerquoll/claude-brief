@@ -36,6 +36,17 @@ jobs:
             jq -e . "$f" >/dev/null && echo "ok: $f"
           done
 
+      - name: No internal hostnames
+        run: |
+          # Secret scanning catches credentials, not hostnames — this catches internal hosts
+          # that must not ship in a public repo (cf. the v1.2.1 history scrub). Extend the
+          # alternation as needed; excludes THIS file so the pattern can't match itself.
+          if git grep -nIiE 'cloudera\.com' -- . ':!.github/workflows/ci.yml'; then
+            echo "::error::internal hostname found in a tracked file — see matches above"
+            exit 1
+          fi
+          echo "no internal hostnames ✓"
+
       - name: claude plugin validate
         continue-on-error: true     # informational — don't block PRs on CLI install/auth hiccups
         run: |
