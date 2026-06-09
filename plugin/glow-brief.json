@@ -1,0 +1,24 @@
+{
+  "document": { "block_prefix": "", "block_suffix": "", "margin": 0 },
+  "paragraph": {},
+  "list": { "level_indent": 2 },
+  "heading": { "bold": true },
+  "h1": {
+    "prefix": "▌ ", "suffix": "",
+    "color": "11", "bold": true,
+    "block_prefix": "", "block_suffix": ""
+  },
+  "h2": { "prefix": "▸ ", "color": "12", "bold": true, "block_prefix": "\n" },
+  "h3": { "prefix": "  ", "color": "10", "bold": true, "block_prefix": "\n" },
+  "h4": { "prefix": "  ", "color": "10", "bold": true, "block_prefix": "\n" },
+  "strong": { "bold": true, "color": "15" },
+  "emph": { "italic": true, "color": "13" },
+  "hr": { "color": "8", "format": "\n──────────────────────────────\n" },
+  "item": { "block_prefix": "• " },
+  "enumeration": { "block_prefix": ". " },
+  "code": { "color": "14" },
+  "code_block": { "margin": 2 },
+  "link": { "color": "12", "underline": true },
+  "link_text": { "color": "12" },
+  "text": {}
+}
