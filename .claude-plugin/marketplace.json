@@ -1,0 +1,16 @@
+{
+  "name": "claude-brief",
+  "description": "The claude-brief plugin: a live, auto-refreshing per-session brief docked beside your Claude Code session.",
+  "owner": {
+    "name": "Dale",
+    "email": "tigerquoll@outlook.com",
+    "url": "https://github.com/tigerquoll/claude-brief"
+  },
+  "plugins": [
+    {
+      "name": "claude-brief",
+      "source": "./",
+      "description": "A live, auto-refreshing per-session brief docked beside your Claude Code session — for context-switching across parallel sessions."
+    }
+  ]
+}
