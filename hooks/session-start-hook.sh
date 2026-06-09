@@ -42,6 +42,9 @@ fi
 msg=""
 [ -n "$req" ] && msg="claude-brief: required dep(s) missing — ${req%, } — the dock can't run until these are installed"
 [ -n "$opt" ] && msg="${msg:+$msg; }optional: install ${opt} for richer rendering"
-[ -n "$brew" ] && [ "$(uname -s)" = Darwin ] && msg="${msg} — try: brew install ${brew% }"
+if [ -n "$brew" ] && [ "$(uname -s)" = Darwin ]; then   # Homebrew isn't guaranteed — only name it if present
+  if command -v brew >/dev/null 2>&1; then msg="${msg} — run: brew install ${brew% }"
+  else msg="${msg} — install ${brew% } (Homebrew: https://brew.sh)"; fi
+fi
 [ -n "$msg" ] && printf '{"systemMessage":"%s"}\n' "$msg"
 exit 0

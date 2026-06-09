@@ -14,7 +14,8 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin roo
 # reaches it.)
 if [ "${BASH_VERSINFO[0]:-0}" -lt 5 ]; then
   printf '\n  claude-brief: the dock viewer needs bash >= 5 (this is bash %s).\n' "${BASH_VERSION%%(*}"
-  printf '  Fix:  install bash >= 5  (macOS: brew install bash)  then reopen  /claude-brief:brief\n\n'
+  if command -v brew >/dev/null 2>&1; then bfix='brew install bash'; else bfix='see https://brew.sh'; fi
+  printf '  Fix:  install bash >= 5  (%s)  then reopen  /claude-brief:brief\n\n' "$bfix"
   printf '  (press any key to close this pane) '
   read -rn1 _ 2>/dev/null || read -r _ 2>/dev/null
   exit 0
