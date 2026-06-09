@@ -1,3 +1,0 @@
-# Linux-specific terminal drivers go here (e.g. a future ghostty-on-Linux driver).
-# The loader searches <os>/ then common/ for a driver name, so a driver placed here
-# is used only on Linux; the macOS equivalents live in darwin/. See bin/lib/terminal-driver.sh.
