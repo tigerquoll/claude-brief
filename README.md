@@ -35,7 +35,7 @@ kitty, WezTerm, ghostty, and Apple Terminal are auto-detected, with a generic fa
 
 ## Quick start
 
-**As a Claude Code plugin** — one command, hooks auto-wire (no `settings.json` editing):
+**As a Claude Code plugin (recommended)** — one command, hooks auto-wire (no `settings.json` editing):
 ```
 /plugin marketplace add tigerquoll/claude-brief
 /plugin install claude-brief@claude-brief
