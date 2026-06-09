@@ -8,6 +8,18 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin roo
 # Paints on the ALT SCREEN buffer (like top/less) so a brief that fits the pane
 # shows no scroll bar.
 #   usage: brief-view.sh <session-id>
+# The live viewer uses bash-5 features ($EPOCHSECONDS for timing); macOS ships 3.2.
+# A viewer launched under the wrong bash would silently mistime rather than fail —
+# so check up front and show a fix instead. (Kept above any bash-4+ syntax so 3.2
+# reaches it.)
+if [ "${BASH_VERSINFO[0]:-0}" -lt 5 ]; then
+  printf '\n  claude-brief: the dock viewer needs bash >= 5 (this is bash %s).\n' "${BASH_VERSION%%(*}"
+  if command -v brew >/dev/null 2>&1; then bfix='brew install bash'; else bfix='see https://brew.sh'; fi
+  printf '  Fix:  install bash >= 5  (%s)  then reopen  /claude-brief:brief\n\n' "$bfix"
+  printf '  (press any key to close this pane) '
+  read -rn1 _ 2>/dev/null || read -r _ 2>/dev/null
+  exit 0
+fi
 sid="$1"
 [ -z "$sid" ] && { echo "brief-view: no session id given"; exit 1; }
 case "$sid" in *[!0-9a-fA-F-]*) echo "brief-view: invalid (non-UUID) session id"; exit 1 ;; esac

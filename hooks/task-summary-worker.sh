@@ -18,6 +18,7 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin roo
 # your own script (contract documented in brief-summarize.sh).
 sid="$1"; tpath="$2"
 [ -z "$sid" ] && exit 0
+command -v jq >/dev/null 2>&1 || exit 0   # no jq: can't parse the transcript (the SessionStart hook tells the user)
 umask 077   # briefs/labels can contain sensitive session content -> create them private
 . "$ROOT/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 
