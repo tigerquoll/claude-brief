@@ -1,0 +1,13 @@
+# Keep the release tarball lean (git archive, in .github/workflows/release.yml):
+# ship only the install payload — install.sh, claude/, iterm2/, LICENSE. Everything
+# below is dev/CI/docs that an installer doesn't need. The release workflow adds a
+# short README.txt pointing back to the canonical project on GitHub.
+.github/        export-ignore
+docs/           export-ignore
+traffic/        export-ignore
+DEVELOPING.md   export-ignore
+README.md       export-ignore
+sync.sh         export-ignore
+test.sh         export-ignore
+.shellcheckrc   export-ignore
+.gitattributes  export-ignore

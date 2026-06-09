@@ -21,15 +21,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build tarball
+      - name: Build a lean tarball (+ pointer back to the repo)
         run: |
           set -euo pipefail
           ver="${GITHUB_REF_NAME#v}"                      # v0.4.0 -> 0.4.0
-          # tracked files only (no .git), extracted into a versioned dir; the asset
-          # NAME stays version-less so releases/latest/download/<name> is stable.
-          git archive --format=tar.gz \
-            --prefix="claude-brief-${ver}/" \
-            -o claude-brief.tar.gz "${GITHUB_REF_NAME}"
+          stage="claude-brief-${ver}"
+          mkdir -p "$stage"
+          # tracked files minus .gitattributes export-ignore (docs, CI, dev tooling);
+          # the asset NAME stays version-less so releases/latest/download/<name> is stable.
+          git archive "${GITHUB_REF_NAME}" | tar -x -C "$stage"
+          # this archive is a lean snapshot — point users at the canonical project
+          printf '%s\n' \
+            "claude-brief ${GITHUB_REF_NAME} — live session-brief dock for Claude Code" \
+            "" \
+            "This archive is a lean release snapshot (install payload only)." \
+            "" \
+            "Install:" \
+            "  ./install.sh        # dependency check, then copies into ~/.claude" \
+            "Then add three hooks to ~/.claude/settings.json:" \
+            '  UserPromptSubmit -> bash "$HOME/.claude/hooks/task-prompt-hook.sh"' \
+            '  Stop             -> bash "$HOME/.claude/hooks/task-summary-hook.sh"' \
+            '  SessionEnd       -> bash "$HOME/.claude/hooks/session-end-hook.sh"' \
+            "" \
+            "Full docs, screenshots, source, and the latest release:" \
+            "  https://github.com/tigerquoll/claude-brief" \
+            > "$stage/README.txt"
+          tar -czf claude-brief.tar.gz "$stage"
 
       - name: Publish release + upload asset
         env:
