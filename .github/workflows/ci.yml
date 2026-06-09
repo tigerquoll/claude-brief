@@ -1,6 +1,8 @@
-# Lint + validate on every push to main and every PR, so a change can't silently
-# break the scripts or the plugin manifests. Kept fast and dependency-light; the full
-# regression suite (./test.sh) is run locally (it needs glow/tmux + an installed tree).
+# On every push to main and every PR: a fast lint/validate gate (the `check` job, Ubuntu)
+# plus the full regression suite (the `regression` job, macOS — the suite has BSD-isms like
+# `stat -f` and drives the real scripts, so it matches the dev env). Its real-terminal e2e
+# parts skip under CI; the ~115 deterministic tests run. So a change can't silently break
+# the scripts or the plugin manifests.
 name: ci
 
 on:
@@ -39,3 +41,28 @@ jobs:
         run: |
           npm install -g @anthropic-ai/claude-code
           claude plugin validate .
+
+  regression:
+    # The full suite drives the real scripts and has BSD-isms (stat -f), so it runs on
+    # macOS to match the dev env. Free for public repos. test.sh self-builds a throwaway
+    # ~/.claude from the repo (no install needed); the real-terminal e2e blocks skip under CI.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bash 5 + jq
+        run: |
+          brew install bash jq >/dev/null
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"   # bash 5 + jq ahead of the macOS defaults
+
+      - name: Stub the claude CLI
+        # install.sh's dep-check only probes `command -v claude`; a stub keeps the job
+        # hermetic (no network CLI install) while still exercising install.sh's OS-aware logic.
+        run: |
+          mkdir -p "$HOME/.localbin"
+          printf '#!/bin/sh\nexit 0\n' > "$HOME/.localbin/claude"
+          chmod +x "$HOME/.localbin/claude"
+          echo "$HOME/.localbin" >> "$GITHUB_PATH"
+
+      - name: Regression suite
+        run: ./test.sh
