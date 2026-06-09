@@ -7,6 +7,7 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin roo
 
 # Recursion guard: the worker's inner `claude -p` re-fires this hook on Stop.
 [ -n "$CLAUDE_TASK_SUMMARY" ] && exit 0
+command -v jq >/dev/null 2>&1 || exit 0   # no jq: can't parse the transcript (the SessionStart hook tells the user)
 . "$ROOT/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 
 input=$(cat)
