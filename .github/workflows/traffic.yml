@@ -1,0 +1,52 @@
+# Daily snapshot of GitHub "traffic" (clones + views) into the repo, so the data
+# survives past GitHub's rolling 14-day window (Insights -> Traffic only keeps 14
+# days, and only repo admins can see it). Each run fetches the last 14 days of
+# per-day counts and merges them into traffic/*.json keyed by date — idempotent, so
+# a missed run is recovered on the next one (the 14-day window is the buffer).
+#
+# AUTH: the Traffic API needs PUSH access AND the built-in GITHUB_TOKEN cannot read
+# it, so this uses a PAT stored as the TRAFFIC_TOKEN secret. Setup: traffic/README.md.
+name: traffic
+
+on:
+  schedule:
+    - cron: '17 4 * * *'    # ~04:17 UTC daily
+  workflow_dispatch: {}      # plus a manual "Run workflow" button
+
+permissions:
+  contents: write            # to commit the merged data back
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch + merge clones and views
+        env:
+          GH_TOKEN: ${{ secrets.TRAFFIC_TOKEN }}   # PAT (repo scope) — GITHUB_TOKEN can't read traffic
+        run: |
+          set -euo pipefail
+          mkdir -p traffic
+          for kind in clones views; do
+            gh api "repos/${{ github.repository }}/traffic/$kind" > "/tmp/$kind.json"
+            [ -f "traffic/$kind.json" ] || echo '{}' > "traffic/$kind.json"
+            # API's per-day array -> { "YYYY-MM-DD": {count, uniques} }
+            jq --arg k "$kind" '
+              (.[$k] // [])
+              | map({ (.timestamp[0:10]): {count: .count, uniques: .uniques} })
+              | add // {}
+            ' "/tmp/$kind.json" > "/tmp/$kind.day.json"
+            # merge into history (today's values win), keep it sorted by date
+            jq -s '.[0] * .[1] | to_entries | sort_by(.key) | from_entries' \
+              "traffic/$kind.json" "/tmp/$kind.day.json" > "/tmp/$kind.merged.json"
+            mv "/tmp/$kind.merged.json" "traffic/$kind.json"
+          done
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add traffic/clones.json traffic/views.json
+          git diff --cached --quiet || git commit -m "traffic: snapshot $(date -u +%F)"
+          git push
