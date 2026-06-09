@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin root (or ~/.claude when installed)
 # Alternative brief summariser — calls the Anthropic Messages API DIRECTLY through
 # the LiteLLM / Anthropic gateway, skipping the `claude -p` CLI's ~30k-token prefix
 # (MCP schemas, system prompt, tool defs) → roughly ~5x cheaper per summary.
@@ -20,7 +21,7 @@
 # Any of these may instead live in ~/.claude/brief-summarizer.env (sourced if it's
 # yours and not group/other-writable) — handy to keep the token out of settings.json,
 # and out of the main session's environment entirely.
-. "$HOME/.claude/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
+. "$ROOT/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 cfg="$HOME/.claude/brief-summarizer.env"
 if [ -f "$cfg" ] && [ -O "$cfg" ]; then
   cperm=$(_perm "$cfg")

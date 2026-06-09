@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin root (or ~/.claude when installed)
 # Stop hook: fires when the agent finishes a turn. Launches a detached worker
 # that refreshes the status-line task summary, then returns instantly so it
 # never adds latency. The worker derives everything it needs from the
@@ -6,7 +7,7 @@
 
 # Recursion guard: the worker's inner `claude -p` re-fires this hook on Stop.
 [ -n "$CLAUDE_TASK_SUMMARY" ] && exit 0
-. "$HOME/.claude/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
+. "$ROOT/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 
 input=$(cat)
 sid=$(printf '%s' "$input" | jq -r '.session_id // empty')
@@ -23,7 +24,7 @@ umask 077   # state files can summarize sensitive session content -> keep them p
 prunestamp="$HOME/.claude/state/.prune-stamp"
 if [ ! -f "$prunestamp" ] || [ "$(( $(date +%s) - $(_mtime "$prunestamp") ))" -gt 86400 ]; then
   mkdir -p "$HOME/.claude/state"; : > "$prunestamp"
-  nohup "$HOME/.claude/bin/brief-prune.sh" >/dev/null 2>&1 &
+  nohup "$ROOT/bin/brief-prune.sh" >/dev/null 2>&1 &
 fi
 
 # --- Skip trivial turns (Haiku cost guard) ---------------------------------
@@ -53,6 +54,6 @@ if [ -f "$tpath" ]; then
   : > "$skipf"                               # summarizing now -> reset the "skipped since" count
 fi
 
-nohup "$HOME/.claude/hooks/task-summary-worker.sh" "$sid" "$tpath" \
+nohup "$ROOT/hooks/task-summary-worker.sh" "$sid" "$tpath" \
   >/dev/null 2>&1 &
 exit 0

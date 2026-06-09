@@ -43,26 +43,38 @@ between the hooks, the worker, and the viewer:
 | `.skipped` | Stop hook | viewer | trivial-turn skip counter |
 | `panes/<id>`, `cwds/<cwd>` | prompt hook | brief-open | pane / cwd → sid map (fallback; `$CLAUDE_CODE_SESSION_ID` wins) |
 
-## Repo ↔ live layout
+## Layout & install modes
 
-The repo mirrors the live `~/.claude` tree:
+The **repo root is the plugin root** — one self-locating script tree, two ways to run it:
 
 ```
-claude/hooks/             task-prompt-hook.sh task-summary-hook.sh task-summary-worker.sh session-end-hook.sh
-claude/bin/               brief-open.sh brief-view.sh brief-prune.sh brief-summarize.sh brief-summarize-api.sh brief-term-profile.sh
-claude/bin/lib/           terminal-driver.sh  (detect + dispatch)   portable.sh  (BSD/GNU stat shim)
-claude/bin/term/common/   tmux.sh kitty.sh wezterm.sh tabby.sh generic.sh   (cross-platform drivers)
-claude/bin/term/darwin/   iterm2.sh ghostty.sh terminal.sh                 (macOS-only drivers)
-claude/bin/term/linux/    (home for Linux-specific drivers; empty by default)
-claude/commands/          brief.md
-claude/glow-brief.json
+.claude-plugin/   plugin.json (manifest) · marketplace.json (self-hosting marketplace)
+hooks/            hooks.json · task-prompt-hook.sh task-summary-hook.sh task-summary-worker.sh
+                  session-end-hook.sh session-start-hook.sh
+bin/              brief-open.sh brief-view.sh brief-prune.sh brief-summarize.sh brief-summarize-api.sh brief-term-profile.sh
+bin/lib/          terminal-driver.sh (detect + dispatch)   portable.sh (BSD/GNU stat shim)
+bin/term/common/  tmux.sh kitty.sh wezterm.sh tabby.sh generic.sh   (cross-platform drivers)
+bin/term/darwin/  iterm2.sh ghostty.sh terminal.sh                  (macOS-only drivers)
+bin/term/linux/   (home for Linux-specific drivers; empty by default)
+commands/brief.md
+glow-brief.json
 iterm2/DynamicProfiles/brief.json    (iterm2 dock profile: Default + 1.2× line spacing)
 ```
 
-- `./install.sh` copies repo → `~/.claude` (drivers into `term/common/` + `term/<os>/`;
-  drops pre-subdir flat `*.sh` on upgrade). `--check` runs only the dependency check.
-- `./sync.sh` copies live `~/.claude` → repo. Run before committing local tweaks.
-- Both mirror the `term/<os>/` subdirs and are `set -e`-safe.
+- **Plugin** — `claude --plugin-dir .` (dev) or `/plugin install` (users). Claude Code loads
+  `commands/` + `hooks/hooks.json`, so the three hooks (UserPromptSubmit/Stop/SessionEnd) **plus** a
+  one-time `SessionStart` setup auto-activate — no `settings.json` editing.
+- **`install.sh`** — copies the script tree (`bin/`, `hooks/*.sh`, `commands/`, `glow-brief.json`,
+  the iTerm2 profile) into `~/.claude` for the clone path; you then add the three hooks to
+  `settings.json` by hand. `--check` runs only the dependency check.
+
+The scripts are **self-locating**: each computes `ROOT` (the parent of its own dir, via
+`BASH_SOURCE`) and resolves siblings as `$ROOT/bin/…`, `$ROOT/hooks/…`, `$ROOT/glow-brief.json` — so
+the identical tree works whether `ROOT` is the plugin dir or `~/.claude`. **State always lives in
+`~/.claude/state`** (never under the plugin), shared across both modes. Use one mode, not both, or
+the `settings.json` hooks and the plugin hooks double-fire.
+
+Dev loop: edit in the repo → test with `claude --plugin-dir .` (or `./install.sh` then `./test.sh`).
 
 ## Terminal drivers
 
@@ -199,7 +211,7 @@ than the CLI; see the README for the user-facing opt-in).
   headless end-to-end checks for tmux and WezTerm.
 - **ShellCheck** — the tree is clean:
   ```
-  shellcheck -s bash claude/bin/*.sh claude/bin/lib/*.sh claude/bin/term/*/*.sh claude/hooks/*.sh install.sh sync.sh test.sh
+  shellcheck -s bash bin/*.sh bin/lib/*.sh bin/term/*/*.sh hooks/*.sh install.sh test.sh
   ```
   `.shellcheckrc` carries the project-wide disables (with reasons); narrow cases have
   inline `# shellcheck disable=` directives. Run it as a pre-commit gate.

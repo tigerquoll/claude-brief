@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin root (or ~/.claude when installed)
 # Detached worker. Summarizes the session into ~/.claude/state/<sid>.task as:
 #   ▸ goal: <overarching objective>   (free, from Claude Code's auto title)
 #   ▸ now:  <most recent sub-task>     (model-summarized)
@@ -18,7 +19,7 @@
 sid="$1"; tpath="$2"
 [ -z "$sid" ] && exit 0
 umask 077   # briefs/labels can contain sensitive session content -> create them private
-. "$HOME/.claude/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
+. "$ROOT/bin/lib/portable.sh"   # _mtime/_perm (portable BSD/GNU stat)
 
 state_dir="$HOME/.claude/state"
 mkdir -p "$state_dir"
@@ -133,12 +134,12 @@ Produce PART 1, then the ===BRIEF=== marker line, then PART 2."
 # $EDITOR); the ~/.claude/ confinement + ownership/perm checks mean an override
 # you didn't set yourself (e.g. injected by an untrusted repo's project env, or a
 # relative / in-repo script) is ignored. Put a custom summariser in ~/.claude/bin/.
-summariser="$HOME/.claude/bin/brief-summarize.sh"
+summariser="$ROOT/bin/brief-summarize.sh"
 if [ -n "$BRIEF_SUMMARIZER" ]; then
   perm=$(_perm "$BRIEF_SUMMARIZER")
   case "$BRIEF_SUMMARIZER" in
     *..*) ;;                                            # reject path-traversal escapes
-    "$HOME"/.claude/*)
+    "$HOME"/.claude/*|"$ROOT"/*)                         # trusted: ~/.claude or the installed plugin root
       [ -f "$BRIEF_SUMMARIZER" ] && [ -x "$BRIEF_SUMMARIZER" ] && [ -O "$BRIEF_SUMMARIZER" ] \
         && ! (( 8#$perm & 0002 )) && summariser="$BRIEF_SUMMARIZER" ;;
   esac

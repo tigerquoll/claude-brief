@@ -1,4 +1,4 @@
-# Claude Brief — live session-brief dock for Claude Code
+# Claude Brief — a live per-session summary brief beside your Claude Code terminal
 
 [![License: BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 [![downloads](https://img.shields.io/github/downloads/tigerquoll/claude-brief/total.svg)](https://github.com/tigerquoll/claude-brief/releases)
@@ -34,6 +34,16 @@ kitty, WezTerm, ghostty, and Apple Terminal are auto-detected, with a generic fa
 </p>
 
 ## Quick start
+
+**As a Claude Code plugin** — one command, hooks auto-wire (no `settings.json` editing):
+```
+/plugin marketplace add tigerquoll/claude-brief
+/plugin install claude-brief@claude-brief
+```
+Then run **`/claude-brief:brief`** in any session.
+
+**Or install into `~/.claude`** (no plugin system; the command stays `/brief`). Pick *one*
+of these — the plugin and `install.sh` wire the same hooks, so running both double-fires:
 ```bash
 curl -fsSL https://github.com/tigerquoll/claude-brief/releases/latest/download/claude-brief.tar.gz \
   | tar xz && cd claude-brief-*/ && ./install.sh
@@ -180,7 +190,7 @@ themselves are bash-3.2-safe.
   SessionEnd       -> bash "$HOME/.claude/hooks/session-end-hook.sh"
   ```
 
-Contributing or porting (`./sync.sh`, `./test.sh`, ShellCheck, the driver guide) →
+Contributing or porting (`./test.sh`, ShellCheck, the driver guide) →
 **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Prior art & comparison
