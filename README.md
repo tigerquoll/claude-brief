@@ -21,7 +21,9 @@ you the thread.
 *State · Tried · Gotchas · Decisions · Next* — right beside your session, so that
 thread is always one glance away instead of buried in the scrollback.
 
-A cheap, cost-gated **Haiku summary** regenerates each turn. The dock is
+Each turn that does real work, a quick **Claude Haiku** call updates the brief;
+trivial turns — no tool calls, barely any new output — are skipped, so it only spends
+a cent or two when there's something new, and nothing when there isn't. The dock is
 **pluggable**: iTerm2 (the most developed, as it's my daily driver), tmux,
 kitty, WezTerm, ghostty, and Apple Terminal are auto-detected, with a generic fallback for anything else.
 
