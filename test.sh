@@ -3,17 +3,36 @@
 # && || assertion idioms, which trip these info checks throughout — silence them
 # file-wide rather than per-line.
 # shellcheck disable=SC2030,SC2031,SC2015,SC2162
-# Regression tests for the brief-dock scripts. Run after ./install.sh
-# — it exercises the LIVE ~/.claude scripts. Integration-style: drives the real
-# worker/hooks with throwaway (hex-UUID) session ids and FAKE summarisers placed
-# under ~/.claude/bin (so they pass the path confinement), checking outcomes/state.
+# Regression tests for the brief-dock scripts. Run straight from the repo: `./test.sh`
+# (no install needed). Builds a THROWAWAY ~/.claude from the repo tree (see setup below)
+# and drives the real worker/hooks integration-style — throwaway (hex-UUID) session ids
+# and FAKE summarisers placed under that ~/.claude/bin (so they pass the path
+# confinement), checking outcomes/state.
 # A few pure bits (summariser-path validation, viewer math) are REPLICATED here and
 # marked "MIRROR" — keep them in sync with the source if that logic changes.
 # Safe to re-run; cleans up its own sids/fakes. Exit status = number of failures.
 set -u
-ROOT="$(cd "$(dirname "$0")" && pwd)"   # repo root (for the repo's install.sh)
+ROOT="$(cd "$(dirname "$0")" && pwd)"   # repo (plugin) root — source of the scripts + install.sh
+# Build an ISOLATED ~/.claude from the repo and test against THAT, not the user's live one:
+# the scripts now ship as a plugin (their real copy lives in the plugin cache, not
+# ~/.claude), and the worker confines $BRIEF_SUMMARIZER to "$HOME"/.claude/* — so the suite
+# needs a populated ~/.claude it owns. A throwaway $HOME gives that and keeps tests from
+# reading or clobbering real session state. (The install.sh --check tests below still use $ROOT.)
+TESTHOME="$(mktemp -d "${TMPDIR:-/tmp}/brief-test.XXXXXX")"
+# jq is often a version-manager SHIM (asdf/mise) that resolves its real binary via $HOME —
+# the faked $HOME below would break it (empty output, cascading failures). Shadow jq with a
+# wrapper that restores the real $HOME just for jq, so the scripts-under-test get a working
+# jq while still seeing the throwaway home for state + path confinement. (Captured now,
+# while $HOME is still real.)
+SHIMDIR="$(mktemp -d "${TMPDIR:-/tmp}/brief-test-shim.XXXXXX")"
+{ printf '#!/bin/sh\nexec env HOME="%s" "%s" "$@"\n' "$HOME" "$(command -v jq)"; } > "$SHIMDIR/jq"
+chmod +x "$SHIMDIR/jq"
+export HOME="$TESTHOME" PATH="$SHIMDIR:$PATH"
 H="$HOME/.claude"; HOOKS="$H/hooks"; BIN="$H/bin"; ST="$H/state"; TP=/nonexistent.jsonl
 W="$HOOKS/task-summary-worker.sh"
+mkdir -p "$H" "$ST"
+cp -Rp "$ROOT/bin" "$ROOT/hooks" "$H/"           # self-locating scripts resolve ROOT=$H from here
+cp "$ROOT/glow-brief.json" "$H/" 2>/dev/null || :
 # brief-open now honours $CLAUDE_CODE_SESSION_ID (resort #0) as the authoritative
 # sid. Unset it so the pane/cwd/newest resolution tests are deterministic even when
 # this suite is run from inside a real Claude Code session (which exports it); the
@@ -27,7 +46,7 @@ mkfake(){ printf '%s' "$2" > "$BIN/$1"; chmod 755 "$BIN/$1"; }
 
 S=feed0000-0000-0000-0000-000000000000          # throwaway, UUID-shaped
 wipe(){ rm -f "$ST/$S".* 2>/dev/null; rmdir "$ST/$S.brief.lock" 2>/dev/null; }
-trap 'wipe; rm -f "$BIN"/t-*.sh "$BIN/term/common/fake.sh" /tmp/t-* 2>/dev/null' EXIT
+trap 'wipe; rm -rf "$TESTHOME" "$SHIMDIR" /tmp/t-* 2>/dev/null' EXIT
 
 mkfake t-ok.sh   $'#!/usr/bin/env bash\nprintf "goal: g\\nnow: GOOD\\n===BRIEF===\\n# T\\n## State\\n- s\\n## Tried\\n—\\n## Gotchas\\n—\\n## Decisions\\n—\\n## Next / Open\\n- n\\n"\n'
 mkfake t-unch.sh $'#!/usr/bin/env bash\nprintf "goal: g\\nnow: n\\n===BRIEF===\\nUNCHANGED\\n"\n'
@@ -521,8 +540,14 @@ if command -v tmux >/dev/null 2>&1; then
     is "session file = tmux <pane>" "$(cat "$ST/$S.brief.session" 2>/dev/null)" "tmux $dock"
     render=""; i=0
     while [ "$i" -lt 15 ]; do napf; render=$(tmx capture-pane -p -t "$dock" 2>/dev/null); printf '%s' "$render" | grep -q 'tmux e2e' && break; i=$((i+1)); done
-    is "viewer rendered the brief"  "$([ "$(printf '%s' "$render" | grep -c 'tmux e2e')" -ge 1 ] && echo yes || echo no)" yes
-    is "viewer footer (bash5+glow)" "$([ "$(printf '%s' "$render" | grep -c generated)" -ge 1 ] && echo yes || echo no)" yes
+    # The viewer needs bash 5; if the dock pane's `env bash` is older (a sandbox/CI PATH with
+    # no Homebrew bash), it prints the bash-5 notice instead of rendering — skip, don't fail.
+    if printf '%s' "$render" | grep -q 'needs bash >= 5'; then
+      printf '  \033[33mskip\033[0m dock pane shell is bash <5 (no bash 5 on its PATH) — viewer render not exercised\n'
+    else
+      is "viewer rendered the brief"  "$([ "$(printf '%s' "$render" | grep -c 'tmux e2e')" -ge 1 ] && echo yes || echo no)" yes
+      is "viewer footer (bash5+glow)" "$([ "$(printf '%s' "$render" | grep -c generated)" -ge 1 ] && echo yes || echo no)" yes
+    fi
     tmx send-keys -t "$mp" "'$BIN/brief-open.sh' close >>/tmp/t-tmux 2>&1" Enter
     gone=no; i=0
     while [ "$i" -lt 15 ]; do napf; tmx list-panes -t s -F '#{pane_id}' 2>/dev/null | grep -qx "$dock" || { gone=yes; break; }; i=$((i+1)); done
