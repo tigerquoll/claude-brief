@@ -96,7 +96,7 @@ rm -f "$out1" "$ww"
 
 echo "STOP HOOK — cost gate + noauto (stubbed worker launch)"
 stub=/tmp/t-stop.sh
-perl -0777 -pe 's/nohup "\$HOME\/\.claude\/hooks\/task-summary-worker\.sh".*?&\n/echo SPAWNED > \$SENTINEL\n/s' "$HOOKS/task-summary-hook.sh" > "$stub"
+perl -0777 -pe 's/nohup "\$ROOT\/hooks\/task-summary-worker\.sh".*?&\n/echo SPAWNED > \$SENTINEL\n/s' "$HOOKS/task-summary-hook.sh" > "$stub"
 run_stop(){ rm -f /tmp/t-spawn "$ST/$S.tlines" "$ST/$S.skipped"; export SENTINEL=/tmp/t-spawn
   printf '{"session_id":"%s","transcript_path":"%s"}' "$S" "$1" | bash "$stub"
   [ -f /tmp/t-spawn ] && echo spawned || echo skipped; }
