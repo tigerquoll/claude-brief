@@ -69,13 +69,16 @@ git clone https://github.com/tigerquoll/claude-brief.git && cd claude-brief && .
 Architecture, the driver contract, adding a terminal → **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Commands
-- **`/claude-brief:brief`** — open/refocus a docked split showing this session's live brief
-  (State · Tried · Gotchas · Decisions · Next). `/claude-brief:brief float` = separate window;
-  `/claude-brief:brief refresh` = regenerate the brief now instead of next turn;
-  `/claude-brief:brief close` = tear the dock down (clean, no-prompt close on every backend).
 
-  In the dock: `r` refresh now · `a` toggle end-of-turn auto-refresh · `i` toggle
-  periodic refresh · `+`/`-` interval · `?` keys · `q` close.
+| Command | What it does |
+|---|---|
+| `/claude-brief:brief` | Open or refocus the docked split with this session's live brief (State · Tried · Gotchas · Decisions · Next) |
+| `/claude-brief:brief float` | Open it as a separate window instead of an in-window split |
+| `/claude-brief:brief refresh` | Regenerate the brief now, instead of waiting for the next turn |
+| `/claude-brief:brief close` | Tear the dock down — a clean, no-prompt close on every backend |
+
+In the dock: `r` refresh now · `a` toggle end-of-turn auto-refresh · `i` toggle periodic
+refresh · `+`/`-` interval · `?` keys · `q` close.
 
 ## How it works
 A **`Stop`** hook runs a cheap Haiku summary each completed turn (cost-gated: it
