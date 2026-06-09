@@ -177,11 +177,17 @@ uses. Two opt-ins:
 ## Requirements
 bash ≥ 5 for the dock viewer (`brew install bash`) · `jq` · `perl` (built-in) · the
 `claude` CLI · **one terminal** from [Terminals](#terminals) above. Optional: `glow`
-(`brew install glow`, recommended) or `bat` for nicer rendering. The hooks + drivers
+(`brew install glow`) renders the brief best; `bat` is a lighter fallback (highlighted
+source, not fully rendered); with neither, it's plain text. The hooks + drivers
 themselves are bash-3.2-safe. `./install.sh` checks these up front; installed as a plugin,
 the SessionStart hook flags anything missing (required deps keep flagging until installed).
 
 ## Install & setup
+> **Using the plugin?** Skip this section. `/plugin install` wires the hooks and copies the
+> iTerm2 profile for you — there's no `install.sh` step and nothing to add to `settings.json`.
+> The steps below are the **manual `~/.claude` install** (the clone path), used only when
+> you're *not* using the plugin system.
+
 - `./install.sh` — runs a **dependency check**, then copies repo → `~/.claude` (+ the
   iTerm2 profile). Exits non-zero if a required dep is missing. Use to restore or set
   up a new machine.
