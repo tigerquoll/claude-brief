@@ -1,7 +1,7 @@
 # Claude Brief — a live per-session summary brief beside your Claude Code terminal
 
 [![License: BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
-[![downloads](https://img.shields.io/github/downloads/tigerquoll/claude-brief/total.svg)](https://github.com/tigerquoll/claude-brief/releases)
+[![downloads](https://img.shields.io/github/downloads/tigerquoll/claude-brief/total.svg?cacheSeconds=86400)](https://github.com/tigerquoll/claude-brief/releases)
 ![shell: bash](https://img.shields.io/badge/shell-bash-4EAA25.svg)
 ![platform: macOS | Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)
 ![ShellCheck: clean](https://img.shields.io/badge/shellcheck-clean-brightgreen.svg)
