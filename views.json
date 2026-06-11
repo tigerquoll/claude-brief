@@ -56,7 +56,11 @@
     "uniques": 1
   },
   "2026-06-09": {
-    "count": 0,
-    "uniques": 0
+    "count": 45,
+    "uniques": 2
+  },
+  "2026-06-10": {
+    "count": 4,
+    "uniques": 3
   }
 }
