@@ -146,10 +146,73 @@ if [ -n "$BRIEF_SUMMARIZER" ]; then
         && ! (( 8#$perm & 0022 )) && summariser="$BRIEF_SUMMARIZER" ;;   # reject group/other-writable (matches the api-config check)
   esac
 fi
+
+# Auto-selection: when $BRIEF_SUMMARIZER was NOT set, probe the API summariser to
+# see if credentials are available and, if so, prefer it — it's ~5× cheaper for
+# API-billed sessions (skips the CLI's ~30k-token prefix). Explicitly opt out
+# with BRIEF_AUTO_API=0 (or "false") — useful for subscription / OAuth sessions
+# where the CLI default is already the right choice and incurs no extra cost.
+# Security: auto-selection only ever picks the SHIPPED $ROOT/bin/brief-summarize-api.sh,
+# so the ~/.claude-confinement validation above is not weakened.
+auto_selected=0   # 1 = the summariser was auto-picked from the API script
+if [ -z "${BRIEF_SUMMARIZER:-}" ]; then
+  case "${BRIEF_AUTO_API:-}" in
+    0|false) ;;   # user opted out of auto-selection
+    *)
+      # Ask the API script to resolve its credential ladder and report back the
+      # source word (brief / auth-token / api-key). No network call; fast.
+      _check_src=$("$ROOT/bin/brief-summarize-api.sh" --check 2>/dev/null)
+      _check_rc=$?
+      if [ "$_check_rc" = 0 ] && [ -n "$_check_src" ]; then
+        case "$_check_src" in
+          brief|auth-token)
+            # Explicit brief-API config implies intent; ANTHROPIC_AUTH_TOKEN means
+            # the main session is gateway/API-billed — the API script re-uses that
+            # same token and is the cheaper path. Auto-select unconditionally.
+            summariser="$ROOT/bin/brief-summarize-api.sh"
+            auto_selected=1
+            ;;
+          api-key)
+            # An exported ANTHROPIC_API_KEY might be present but not approved for
+            # CLI use — the user may have answered "no" to Claude Code's "use this
+            # API key?" prompt, meaning the main session is still on subscription
+            # auth. Switching would charge the key against the user's wishes.
+            # Only auto-select when Claude Code has recorded approval: it stores
+            # the last 20 characters of each approved key in ~/.claude.json under
+            # .customApiKeyResponses.approved (array of tails). Check with jq; on
+            # ANY failure (file missing, jq error, tail not present) stay with the
+            # CLI default — false negatives are safe, false positives are not.
+            # BRIEF_CLAUDE_JSON can be overridden by tests (same pattern as other
+            # test fixtures in this codebase — see test.sh).
+            _cjson="${BRIEF_CLAUDE_JSON:-$HOME/.claude.json}"
+            # Get the last 20 characters of the key via tail -c 20 (bash-3.2-safe;
+            # ${var: -20} negative-offset syntax is bash-4+).
+            _key_tail=$(printf '%s' "$ANTHROPIC_API_KEY" | tail -c 20)
+            if [ -n "$_key_tail" ] && [ -f "$_cjson" ]; then
+              _approved=$(jq -r --arg t "$_key_tail" \
+                '(.customApiKeyResponses.approved // []) | map(. == $t) | any' \
+                "$_cjson" 2>/dev/null)
+              if [ "$_approved" = "true" ]; then
+                summariser="$ROOT/bin/brief-summarize-api.sh"
+                auto_selected=1
+              fi
+            fi
+            ;;
+        esac
+      fi
+      ;;
+  esac
+fi
+
 # Prompts go via env ($BRIEF_SYS/$BRIEF_USR); CLAUDE_TASK_SUMMARY guards recursion
 # if the summariser calls claude. Bound it with a perl watchdog (perl is a dep +
 # macOS built-in; the alarm survives exec, SIGALRM kills a hung call). Retry ONCE
 # on a fast failure (transient 5xx/network), but NOT on a watchdog timeout.
+# Fallback for auto-selection: if attempt 1 used the auto-selected API summariser
+# and returned empty (non-timeout rc), attempt 2 falls back to the CLI default so
+# the brief is never less reliable than before auto-selection was added. Explicit
+# BRIEF_SUMMARIZER keeps the original retry-same-script behaviour.
+_cli_default="$ROOT/bin/brief-summarize.sh"
 res=""; rc=0
 for attempt in 1 2; do
   res=$( BRIEF_SYS="$sys" BRIEF_USR="$usr" CLAUDE_TASK_SUMMARY=1 \
@@ -158,7 +221,14 @@ for attempt in 1 2; do
   rc=$?   # 0 ok · 124/142 = watchdog timeout · other non-zero = summariser failure
   [ -n "$(printf '%s' "$res" | tr -d '[:space:]')" ] && break   # got a result
   case "$rc" in 124|142) break ;; esac                          # timed out -> a retry would just wait again
-  [ "$attempt" = 1 ] && perl -e 'select(undef,undef,undef,1)'   # ~1s pause (perl, already a dep), then the single retry
+  if [ "$attempt" = 1 ]; then
+    if [ "$auto_selected" = 1 ]; then
+      # API script failed fast (non-timeout) — fall back to the CLI default for
+      # attempt 2 so auto-selection never degrades reliability below the baseline.
+      summariser="$_cli_default"
+    fi
+    perl -e 'select(undef,undef,undef,1)'   # ~1s pause (perl, already a dep), then the single retry
+  fi
 done
 
 # Clean up the summariser's byproduct ASAP, whichever summariser ran: the default

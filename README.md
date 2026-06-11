@@ -177,14 +177,21 @@ These are global — none of these terminals can scope them to just the dock.
 
 ## Customizing the summary model
 By default the brief is a Haiku `claude -p` call on the same gateway Claude Code
-uses. Two opt-ins:
-- **Cheaper, API-direct path:**
-  `export BRIEF_SUMMARIZER=~/.claude/bin/brief-summarize-api.sh` calls the Anthropic
-  Messages API directly — skips the CLI's ~30k-token prefix, ~5× cheaper. Configure
-  it **independently of the main session** via `BRIEF_API_BASE` / `BRIEF_API_TOKEN` /
-  `BRIEF_API_MODEL` (these override the shared `ANTHROPIC_*`), or put them in
-  `~/.claude/brief-summarizer.env` (`chmod 600`) to keep the token out of
-  settings.json and the main session's environment.
+uses — the right choice on a subscription, where it's included in the plan:
+- **Cheaper, API-direct path:** calls the Anthropic Messages API directly — skips
+  the CLI's ~30k-token prefix, ~5× cheaper. This is **selected automatically** when
+  the session is API-billed: `ANTHROPIC_AUTH_TOKEN` is set (gateway / non-OAuth
+  auth), an `ANTHROPIC_API_KEY` that Claude Code has approved for CLI use is
+  present, or any `BRIEF_API_*` / `brief-summarizer.env` config is in place.
+  Subscription (OAuth) sessions are never switched. (`apiKeyHelper`-based auth is
+  not auto-detected — set `BRIEF_SUMMARIZER` manually in that case.)
+
+  - **Force it on:** `export BRIEF_SUMMARIZER=~/.claude/bin/brief-summarize-api.sh`
+  - **Force it off:** `export BRIEF_AUTO_API=0` (skips auto-detection entirely)
+  - **Configure independently** of the main session via `BRIEF_API_BASE` /
+    `BRIEF_API_TOKEN` / `BRIEF_API_MODEL` (override the shared `ANTHROPIC_*`), or
+    put them in `~/.claude/brief-summarizer.env` (`chmod 600`) to keep the token
+    out of settings.json and the main session's environment.
 - **Your own model/script:** point `$BRIEF_SUMMARIZER` at a script under `~/.claude/`
   — contract in [DEVELOPING.md](DEVELOPING.md#the-summariser-contract).
 

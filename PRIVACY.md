@@ -44,6 +44,11 @@ under your existing Claude Code / Anthropic agreement and
 `$BRIEF_SUMMARIZER` (or use the bundled API-direct summariser), the request goes to whatever
 endpoint you configure instead. claude-brief adds no destination of its own.
 
+For API-billed sessions (when `ANTHROPIC_AUTH_TOKEN` or an approved `ANTHROPIC_API_KEY` is
+set), the summary request may be sent directly to your configured `ANTHROPIC_BASE_URL`
+endpoint via curl rather than through the `claude` CLI — same destination service, fewer
+layers.
+
 ## Local storage and retention
 
 - Briefs and labels are written under **`~/.claude/state/`** (e.g. `<session-id>.brief.md`).

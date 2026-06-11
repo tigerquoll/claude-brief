@@ -143,8 +143,244 @@ is "BRIEF_API_TOKEN wins" "$( unset ANTHROPIC_AUTH_TOKEN BRIEF_API_TOKEN; ANTHRO
 is "ANTHROPIC fallback"   "$( unset ANTHROPIC_AUTH_TOKEN BRIEF_API_TOKEN; ANTHROPIC_AUTH_TOKEN=main; echo "${BRIEF_API_TOKEN:-$ANTHROPIC_AUTH_TOKEN}" )" main
 is "parse content text"   "$(printf '%s' '{"content":[{"type":"text","text":"hello"}]}' | jq -r '[.content[]?|select(.type=="text")|.text]|join("")')" hello
 is "error reply -> empty" "$(printf '%s' '{"error":{"type":"x"}}' | jq -r '[.content[]?|select(.type=="text")|.text]|join("")')" ""
-( unset ANTHROPIC_AUTH_TOKEN BRIEF_API_TOKEN; BRIEF_SYS=x BRIEF_USR=y "$BIN/brief-summarize-api.sh" >/dev/null 2>&1 )
+( unset ANTHROPIC_AUTH_TOKEN BRIEF_API_TOKEN ANTHROPIC_API_KEY; BRIEF_SYS=x BRIEF_USR=y "$BIN/brief-summarize-api.sh" >/dev/null 2>&1 )
 is "no token -> exit 1"   "$?" 1
+
+echo "API PLUGIN — --check mode"
+# --check resolves the credential ladder and prints a source word; no network call.
+( unset BRIEF_API_TOKEN ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY
+  ANTHROPIC_AUTH_TOKEN=tok "$BIN/brief-summarize-api.sh" --check )
+is "--check auth-token source"  "$?" 0
+is "--check prints auth-token"  \
+  "$(unset BRIEF_API_TOKEN ANTHROPIC_API_KEY; ANTHROPIC_AUTH_TOKEN=tok "$BIN/brief-summarize-api.sh" --check)" \
+  "auth-token"
+# BRIEF_API_TOKEN wins over ANTHROPIC_AUTH_TOKEN -> source word "brief"
+is "--check prints brief (BRIEF_API_TOKEN)" \
+  "$(BRIEF_API_TOKEN=b ANTHROPIC_AUTH_TOKEN=a "$BIN/brief-summarize-api.sh" --check)" \
+  "brief"
+# ANTHROPIC_API_KEY only -> source word "api-key"
+is "--check prints api-key" \
+  "$(unset BRIEF_API_TOKEN ANTHROPIC_AUTH_TOKEN; ANTHROPIC_API_KEY=k "$BIN/brief-summarize-api.sh" --check)" \
+  "api-key"
+# No credential -> exit 1, no output
+_chk_out=$(unset BRIEF_API_TOKEN ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY; "$BIN/brief-summarize-api.sh" --check 2>/dev/null); _chk_rc=$?
+is "--check no cred -> exit 1"      "$_chk_rc" 1
+is "--check no cred -> no output"   "$_chk_out" ""
+
+echo "API PLUGIN — x-api-key header wiring"
+# With only ANTHROPIC_API_KEY, curl must receive x-api-key via stdin curl-config
+# (never on argv) and must NOT receive an Authorization header.
+ADIR=$(mktemp -d "${TMPDIR:-/tmp}/t-apikey.XXXXXX")
+# curl stub: capture stdin (the curl-config) and argv, then return a valid response.
+cat > "$ADIR/curl" <<'CURLSTUB'
+#!/usr/bin/env bash
+# Collect stdin (the -K - config block) into a file, and argv into another.
+cat > /tmp/t-curlcfg
+printf '%s\n' "$*" > /tmp/t-curlargv
+# Return a valid Messages API response so the summariser exits 0.
+printf '%s' '{"content":[{"type":"text","text":"UNCHANGED"}]}'
+CURLSTUB
+chmod +x "$ADIR/curl"
+(
+  unset BRIEF_API_TOKEN ANTHROPIC_AUTH_TOKEN
+  export ANTHROPIC_API_KEY="test-api-key-value-here"
+  BRIEF_SYS=s BRIEF_USR=u PATH="$ADIR:$PATH" "$BIN/brief-summarize-api.sh" >/dev/null 2>&1
+)
+is "x-api-key in curl-config stdin"  "$(grep -c 'x-api-key' /tmp/t-curlcfg 2>/dev/null)" 1
+is "no Authorization in curl-config" "$(grep -ci 'authorization' /tmp/t-curlcfg 2>/dev/null)" 0
+is "key not on curl argv"            "$(grep -c 'test-api-key-value-here' /tmp/t-curlargv 2>/dev/null)" 0
+rm -rf "$ADIR" /tmp/t-curlcfg /tmp/t-curlargv
+
+echo "WORKER — auto-selection: ANTHROPIC_AUTH_TOKEN present (API path used, no claude stub)"
+# When ANTHROPIC_AUTH_TOKEN is set and BRIEF_SUMMARIZER is unset, the worker should
+# auto-select the API summariser. We stub curl to return a canned Messages-API response
+# and stub claude to record invocations. The brief must be produced and claude never called.
+ASDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-autosel.XXXXXX")
+cat > "$ASDIR/curl" <<'CURLSTUB'
+#!/usr/bin/env bash
+cat > /dev/null   # consume stdin (-K - config)
+# Return a valid Messages API response with full brief content.
+printf '%s' '{"content":[{"type":"text","text":"goal: auto\nnow: api-selected\n===BRIEF===\n# Auto\n## State\n- api used\n## Tried\n—\n## Gotchas\n—\n## Decisions\n—\n## Next / Open\n- done\n"}]}'
+CURLSTUB
+chmod +x "$ASDIR/curl"
+cat > "$ASDIR/claude" <<'CLAUDESTUB'
+#!/usr/bin/env bash
+echo CLAUDE_CALLED >> /tmp/t-autosel-claude
+CLAUDESTUB
+chmod +x "$ASDIR/claude"
+wipe; rm -f /tmp/t-autosel-claude
+(
+  unset BRIEF_SUMMARIZER BRIEF_AUTO_API ANTHROPIC_API_KEY
+  export ANTHROPIC_AUTH_TOKEN=gateway-token
+  PATH="$ASDIR:$PATH" "$W" "$S" "$TP"
+)
+is "auto-select: outcome=updated"     "$(cat "$ST/$S.brief.done" 2>/dev/null)" updated
+is "auto-select: claude not invoked"  "$([ -f /tmp/t-autosel-claude ] && echo called || echo not-called)" not-called
+rm -rf "$ASDIR" /tmp/t-autosel-claude
+
+echo "WORKER — auto-selection: no credentials (OAuth case, CLI default used)"
+# With no API credentials and NO explicit BRIEF_SUMMARIZER, auto-selection must not
+# kick in: the worker runs the shipped CLI default (brief-summarize.sh), which execs
+# the claude stub on PATH. Assert claude WAS called and curl was NOT.
+NOAUTHDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-noauth.XXXXXX")
+cat > "$NOAUTHDIR/curl" <<'CURLSTUB'
+#!/usr/bin/env bash
+echo CURL_CALLED >> /tmp/t-noauth-curl
+CURLSTUB
+chmod +x "$NOAUTHDIR/curl"
+cat > "$NOAUTHDIR/claude" <<'CLAUDESTUB'
+#!/usr/bin/env bash
+echo CLAUDE_CALLED >> /tmp/t-noauth-claude
+printf "goal: g\nnow: n\n===BRIEF===\n# T\n## State\n- cli default\n## Tried\n—\n## Gotchas\n—\n## Decisions\n—\n## Next / Open\n- n\n"
+CLAUDESTUB
+chmod +x "$NOAUTHDIR/claude"
+wipe; rm -f /tmp/t-noauth-curl /tmp/t-noauth-claude
+(
+  unset BRIEF_SUMMARIZER BRIEF_AUTO_API ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY BRIEF_API_TOKEN
+  PATH="$NOAUTHDIR:$PATH" "$W" "$S" "$TP"
+)
+is "no-auth: outcome=updated"         "$(cat "$ST/$S.brief.done" 2>/dev/null)" updated
+is "no-auth: CLI default ran (claude)" "$([ -f /tmp/t-noauth-claude ] && echo called || echo not-called)" called
+is "no-auth: curl not invoked"        "$([ -f /tmp/t-noauth-curl ] && echo called || echo not-called)" not-called
+rm -rf "$NOAUTHDIR" /tmp/t-noauth-curl /tmp/t-noauth-claude
+
+echo "WORKER — auto-selection: BRIEF_AUTO_API=0 opt-out"
+# Even with ANTHROPIC_AUTH_TOKEN set (which would auto-select the API path),
+# BRIEF_AUTO_API=0 must keep the CLI default: claude stub called, curl not.
+OPTOUTDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-optout.XXXXXX")
+cat > "$OPTOUTDIR/curl" <<'CURLSTUB'
+#!/usr/bin/env bash
+echo CURL_CALLED >> /tmp/t-optout-curl
+CURLSTUB
+chmod +x "$OPTOUTDIR/curl"
+cat > "$OPTOUTDIR/claude" <<'CLAUDESTUB'
+#!/usr/bin/env bash
+echo CLAUDE_CALLED >> /tmp/t-optout-claude
+printf "goal: g\nnow: n\n===BRIEF===\n# T\n## State\n- opted out\n## Tried\n—\n## Gotchas\n—\n## Decisions\n—\n## Next / Open\n- n\n"
+CLAUDESTUB
+chmod +x "$OPTOUTDIR/claude"
+wipe; rm -f /tmp/t-optout-curl /tmp/t-optout-claude
+(
+  unset BRIEF_SUMMARIZER ANTHROPIC_API_KEY BRIEF_API_TOKEN
+  export ANTHROPIC_AUTH_TOKEN=tok BRIEF_AUTO_API=0
+  PATH="$OPTOUTDIR:$PATH" "$W" "$S" "$TP"
+)
+is "opt-out: outcome=updated"         "$(cat "$ST/$S.brief.done" 2>/dev/null)" updated
+is "opt-out: CLI default ran (claude)" "$([ -f /tmp/t-optout-claude ] && echo called || echo not-called)" called
+is "opt-out: curl not invoked"        "$([ -f /tmp/t-optout-curl ] && echo called || echo not-called)" not-called
+rm -rf "$OPTOUTDIR" /tmp/t-optout-curl /tmp/t-optout-claude
+
+echo "WORKER — auto-selection: api-key approval guard"
+# An ANTHROPIC_API_KEY tail in .customApiKeyResponses.approved -> auto-select API path.
+# Tail absent or in .rejected -> CLI default.
+APIKDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-apikg.XXXXXX")
+TESTKEY="AAAAAAAAAAAAAAAAAAA1"   # exactly 20 chars, so tail = itself
+cat > "$APIKDIR/curl" <<'CURLSTUB'
+#!/usr/bin/env bash
+echo CURL_CALLED >> /tmp/t-apikg-curl
+cat > /dev/null
+printf '%s' '{"content":[{"type":"text","text":"goal: ak\nnow: approved\n===BRIEF===\n# AK\n## State\n- approved\n## Tried\n—\n## Gotchas\n—\n## Decisions\n—\n## Next / Open\n- done\n"}]}'
+CURLSTUB
+chmod +x "$APIKDIR/curl"
+cat > "$APIKDIR/claude" <<'CLAUDESTUB'
+#!/usr/bin/env bash
+echo CLAUDE_CALLED >> /tmp/t-apikg-claude
+printf "goal: g\nnow: cli\n===BRIEF===\n# AK\n## State\n- cli default\n## Tried\n—\n## Gotchas\n—\n## Decisions\n—\n## Next / Open\n- n\n"
+CLAUDESTUB
+chmod +x "$APIKDIR/claude"
+
+# Fixture: key tail IS in approved list -> auto-select the API path (curl, not claude)
+CJSON_APPROVED="$APIKDIR/claude-approved.json"
+printf '%s' "{\"customApiKeyResponses\":{\"approved\":[\"$TESTKEY\"],\"rejected\":[]}}" > "$CJSON_APPROVED"
+
+wipe; rm -f /tmp/t-apikg-claude /tmp/t-apikg-curl
+(
+  unset BRIEF_SUMMARIZER BRIEF_AUTO_API ANTHROPIC_AUTH_TOKEN BRIEF_API_TOKEN
+  export ANTHROPIC_API_KEY="$TESTKEY" BRIEF_CLAUDE_JSON="$CJSON_APPROVED"
+  PATH="$APIKDIR:$PATH" "$W" "$S" "$TP"
+)
+is "api-key approved: outcome=updated"    "$(cat "$ST/$S.brief.done" 2>/dev/null)" updated
+is "api-key approved: API path used (curl)" "$([ -f /tmp/t-apikg-curl ] && echo called || echo not-called)" called
+is "api-key approved: claude not called"  "$([ -f /tmp/t-apikg-claude ] && echo called || echo not-called)" not-called
+
+# Fixture: key tail NOT in approved list (absent) -> guard refuses; CLI default (claude) runs
+CJSON_ABSENT="$APIKDIR/claude-absent.json"
+printf '%s' '{"customApiKeyResponses":{"approved":[],"rejected":[]}}' > "$CJSON_ABSENT"
+
+wipe; rm -f /tmp/t-apikg-claude /tmp/t-apikg-curl
+(
+  unset BRIEF_SUMMARIZER BRIEF_AUTO_API ANTHROPIC_AUTH_TOKEN BRIEF_API_TOKEN
+  export ANTHROPIC_API_KEY="$TESTKEY" BRIEF_CLAUDE_JSON="$CJSON_ABSENT"
+  PATH="$APIKDIR:$PATH" "$W" "$S" "$TP"
+)
+is "api-key absent: outcome=updated"      "$(cat "$ST/$S.brief.done" 2>/dev/null)" updated
+is "api-key absent: CLI default ran (claude)" "$([ -f /tmp/t-apikg-claude ] && echo called || echo not-called)" called
+is "api-key absent: curl not invoked"     "$([ -f /tmp/t-apikg-curl ] && echo called || echo not-called)" not-called
+
+# Fixture: key tail in REJECTED list -> guard refuses; CLI default (claude) runs
+CJSON_REJECTED="$APIKDIR/claude-rejected.json"
+printf '%s' "{\"customApiKeyResponses\":{\"approved\":[],\"rejected\":[\"$TESTKEY\"]}}" > "$CJSON_REJECTED"
+
+wipe; rm -f /tmp/t-apikg-claude /tmp/t-apikg-curl
+(
+  unset BRIEF_SUMMARIZER BRIEF_AUTO_API ANTHROPIC_AUTH_TOKEN BRIEF_API_TOKEN
+  export ANTHROPIC_API_KEY="$TESTKEY" BRIEF_CLAUDE_JSON="$CJSON_REJECTED"
+  PATH="$APIKDIR:$PATH" "$W" "$S" "$TP"
+)
+is "api-key rejected: outcome=updated"    "$(cat "$ST/$S.brief.done" 2>/dev/null)" updated
+is "api-key rejected: CLI default ran (claude)" "$([ -f /tmp/t-apikg-claude ] && echo called || echo not-called)" called
+is "api-key rejected: curl not invoked"   "$([ -f /tmp/t-apikg-curl ] && echo called || echo not-called)" not-called
+
+rm -rf "$APIKDIR" /tmp/t-apikg-claude /tmp/t-apikg-curl
+
+echo "WORKER — auto-selection fallback: API fails -> CLI default used for attempt 2"
+# When the auto-selected API summariser fails fast (non-timeout), attempt 2 must use
+# the CLI default instead of retrying the API script. The final outcome must be 'updated'.
+FBDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-autofb.XXXXXX")
+cat > "$FBDIR/curl" <<'CURLSTUB'
+#!/usr/bin/env bash
+cat > /dev/null
+# Return an error response (no .content[].text) so brief-summarize-api.sh exits 1.
+printf '%s' '{"error":{"type":"authentication_error","message":"bad token"}}'
+CURLSTUB
+chmod +x "$FBDIR/curl"
+cat > "$FBDIR/claude" <<'CLAUDESTUB'
+#!/usr/bin/env bash
+echo CLAUDE_CALLED >> /tmp/t-autofb-claude
+# Return valid response so attempt 2 succeeds.
+printf "goal: fb\nnow: fallback\n===BRIEF===\n# FB\n## State\n- cli fallback\n## Tried\n—\n## Gotchas\n—\n## Decisions\n—\n## Next / Open\n- done\n"
+CLAUDESTUB
+chmod +x "$FBDIR/claude"
+
+wipe; rm -f /tmp/t-autofb-claude
+(
+  unset BRIEF_SUMMARIZER BRIEF_AUTO_API ANTHROPIC_API_KEY
+  export ANTHROPIC_AUTH_TOKEN=tok
+  PATH="$FBDIR:$PATH" "$W" "$S" "$TP"
+)
+is "fallback: outcome=updated"        "$(cat "$ST/$S.brief.done" 2>/dev/null)" updated
+is "fallback: claude invoked (retry)" "$([ -f /tmp/t-autofb-claude ] && echo called || echo not-called)" called
+rm -rf "$FBDIR" /tmp/t-autofb-claude
+
+echo "WORKER — explicit BRIEF_SUMMARIZER wins over auto-selection"
+# When BRIEF_SUMMARIZER is set explicitly, it must be used even when ANTHROPIC_AUTH_TOKEN
+# is set (which would otherwise trigger auto-selection).
+EXPLDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-expl.XXXXXX")
+cat > "$EXPLDIR/curl" <<'CURLSTUB'
+#!/usr/bin/env bash
+echo CURL_CALLED >> /tmp/t-expl-curl
+CURLSTUB
+chmod +x "$EXPLDIR/curl"
+mkfake t-expl-ok.sh $'#!/usr/bin/env bash\necho EXPLICIT_RAN >> /tmp/t-expl-ran\nprintf "goal: g\\nnow: n\\n===BRIEF===\\n# E\\n## State\\n- explicit\\n## Tried\\n—\\n## Gotchas\\n—\\n## Decisions\\n—\\n## Next / Open\\n- n\\n"\n'
+wipe; rm -f /tmp/t-expl-curl /tmp/t-expl-ran
+(
+  export ANTHROPIC_AUTH_TOKEN=tok BRIEF_SUMMARIZER="$BIN/t-expl-ok.sh"
+  PATH="$EXPLDIR:$PATH" "$W" "$S" "$TP"
+)
+is "explicit: outcome=updated"        "$(cat "$ST/$S.brief.done" 2>/dev/null)" updated
+is "explicit: explicit summariser ran" "$([ -f /tmp/t-expl-ran ] && echo ran || echo not-ran)" ran
+is "explicit: curl not invoked"       "$([ -f /tmp/t-expl-curl ] && echo called || echo not-called)" not-called
+rm -rf "$EXPLDIR" /tmp/t-expl-curl /tmp/t-expl-ran
 
 echo "VIEWER MATH — fmt_int / agebucket / interval ladder (MIRROR of brief-view.sh)"
 fmt_int(){ local s=$1; if [ "$s" -lt 60 ];then printf '%ss' "$s";elif [ "$s" -lt 3600 ];then printf '%dm' "$((s/60))";else printf '%dh' "$((s/3600))";fi; }

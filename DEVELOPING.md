@@ -203,6 +203,28 @@ watchdog and backs off after repeated failures. `bin/brief-summarize-api.sh` is 
 ready-made alternative that calls the Anthropic Messages API directly (~5× cheaper
 than the CLI; see the README for the user-facing opt-in).
 
+### Auto-selection of the API summariser
+
+When `$BRIEF_SUMMARIZER` is **not** set, the worker probes `bin/brief-summarize-api.sh
+--check` to resolve the credential ladder (no network call). If a credential is found,
+the API summariser is auto-selected for API-billed sessions:
+
+- `BRIEF_API_TOKEN` or `ANTHROPIC_AUTH_TOKEN` → auto-selected unconditionally (explicit
+  brief-API config implies intent; `ANTHROPIC_AUTH_TOKEN` indicates a gateway/API-billed
+  session).
+- `ANTHROPIC_API_KEY` → auto-selected only when the key's last-20-character tail appears
+  in `~/.claude.json` under `.customApiKeyResponses.approved` (the approval Claude Code
+  records when the user says "yes" to using the API key). Any doubt → CLI default.
+
+Set `BRIEF_AUTO_API=0` to skip auto-selection entirely. Explicit `BRIEF_SUMMARIZER` always
+wins. If the auto-selected API script fails fast on attempt 1 (non-timeout), attempt 2
+falls back to the CLI default so reliability is never degraded below the baseline.
+
+`bin/brief-summarize-api.sh --check`: resolves the config file + credential ladder
+identically to the normal path, prints the source word (`brief` / `auth-token` /
+`api-key`) to stdout, exits 0; exits 1 with no output when no credential is available.
+The `BRIEF_CLAUDE_JSON` env var overrides the path to `~/.claude.json` for tests.
+
 ## Testing & linting
 
 - `./test.sh` — integration-style regression tests against the LIVE `~/.claude`
