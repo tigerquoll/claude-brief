@@ -40,37 +40,21 @@ kitty, WezTerm, ghostty, and Apple Terminal are auto-detected, with a generic fa
 /plugin marketplace add tigerquoll/claude-brief
 /plugin install claude-brief@claude-brief
 ```
-Then run **`/claude-brief:brief`** in any session.
+Then run **`/claude-brief:brief`** in any session — or just type **`/brief`** and press
+**Tab**: Claude Code's command autocomplete resolves the partial name to
+`/claude-brief:brief`, so you rarely need to type the full plugin prefix.
 
 > **Prereqs:** `bash ≥ 5` and `jq` are required (and `glow` for rich rendering). `/plugin install`
 > runs no dependency check, so install them first — `brew install bash jq glow` — otherwise the dock
 > just flags whatever's missing at session start. Details: [Requirements](#requirements).
 
-**Or install into `~/.claude`** (no plugin system; the command stays `/brief`). Pick *one*
-of these — the plugin and `install.sh` wire the same hooks, so running both double-fires:
-```bash
-curl -fsSL https://github.com/tigerquoll/claude-brief/releases/latest/download/claude-brief.tar.gz \
-  | tar xz && cd claude-brief-*/ && ./install.sh
-```
-Add three hook lines to `~/.claude/settings.json` (it's kept out of the repo so no
-config leaks):
-```
-UserPromptSubmit -> bash "$HOME/.claude/hooks/task-prompt-hook.sh"
-Stop             -> bash "$HOME/.claude/hooks/task-summary-hook.sh"
-SessionEnd       -> bash "$HOME/.claude/hooks/session-end-hook.sh"
-```
-Then run **`/brief`** in any Claude Code session. Full details in
-[Install & setup](#install--setup); deps in [Requirements](#requirements).
-
-**Developing or hacking on it?** Clone instead — that installs your working checkout:
-```bash
-git clone https://github.com/tigerquoll/claude-brief.git && cd claude-brief && ./install.sh
-```
-Architecture, the driver contract, adding a terminal → **[DEVELOPING.md](DEVELOPING.md)**.
+Not using the plugin system — installing into `~/.claude` by hand, or hacking on the
+code? See **[Install & setup](#install--setup)** (deps in [Requirements](#requirements)).
 
 ## Commands
 
-Open and manage the dock with slash commands:
+Open and manage the dock with slash commands (type **`/brief`** and press **Tab** —
+autocomplete fills in the `claude-brief:` prefix for you):
 
 | Command | What it does |
 |---|---|
@@ -208,24 +192,41 @@ the SessionStart hook flags anything missing (required deps keep flagging until 
 ## Install & setup
 > **Using the plugin?** Skip this section. `/plugin install` wires the hooks and copies the
 > iTerm2 profile for you — there's no `install.sh` step and nothing to add to `settings.json`.
-> The steps below are the **manual `~/.claude` install** (the clone path), used only when
-> you're *not* using the plugin system.
+> The steps below are the **manual `~/.claude` install**, used only when you're *not* using
+> the plugin system. Don't run both — the plugin and `install.sh` wire the same hooks, so
+> running both double-fires every summary.
 
+**1. Get the code** — either grab the latest release tarball:
+```bash
+curl -fsSL https://github.com/tigerquoll/claude-brief/releases/latest/download/claude-brief.tar.gz \
+  | tar xz && cd claude-brief-*/
+```
+…or clone the repo (use this if you're hacking on it — `install.sh` then installs your
+working checkout):
+```bash
+git clone https://github.com/tigerquoll/claude-brief.git && cd claude-brief
+```
+
+**2. Install:**
 - `./install.sh` — runs a **dependency check**, then copies repo → `~/.claude` (+ the
   iTerm2 profile). Exits non-zero if a required dep is missing. Use to restore or set
   up a new machine.
 - `./install.sh --check` — run only the dependency check (reports which terminals are
   available and the one auto-detected here); install nothing.
-- Add the hook entries to `~/.claude/settings.json` **by hand** (it isn't committed,
-  to avoid leaking config):
-  ```
-  UserPromptSubmit -> bash "$HOME/.claude/hooks/task-prompt-hook.sh"
-  Stop             -> bash "$HOME/.claude/hooks/task-summary-hook.sh"
-  SessionEnd       -> bash "$HOME/.claude/hooks/session-end-hook.sh"
-  ```
 
-Contributing or porting (`./test.sh`, ShellCheck, the driver guide) →
-**[DEVELOPING.md](DEVELOPING.md)**.
+**3. Wire the hooks** — add the entries to `~/.claude/settings.json` **by hand** (it isn't
+committed, to avoid leaking config):
+```
+UserPromptSubmit -> bash "$HOME/.claude/hooks/task-prompt-hook.sh"
+Stop             -> bash "$HOME/.claude/hooks/task-summary-hook.sh"
+SessionEnd       -> bash "$HOME/.claude/hooks/session-end-hook.sh"
+```
+
+Then run **`/brief`** in any session — on a manual install the command keeps its bare name
+(no `claude-brief:` plugin prefix), so there's no Tab-completion step.
+
+Contributing or porting — architecture, the driver contract, adding a terminal, `./test.sh`,
+ShellCheck → **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Prior art & comparison
 There's an active ecosystem of "what is each of my sessions doing" tools. They
