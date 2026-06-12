@@ -1,6 +1,6 @@
 ---
 description: Open/focus the docked pane showing this session's live summary brief
-argument-hint: "[float|refresh|close]"
+argument-hint: "[float|refresh|close|help]"
 allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/bin/brief-open.sh:*)
 ---
 This session's running brief (state · what's been tried · gotchas · decisions ·
@@ -15,9 +15,14 @@ interval period (30s–1h) · `?` key help · `q` close. The footer shows both
 modes. The brief is sized to fit the dock pane. `/brief refresh` does a one-shot
 refresh from here but re-splits the pane. `/brief close` tears the dock down (a
 clean, no-prompt close on every backend — preferred over `q`/⌘W, which on ghostty
-leave an empty pane / pop a confirm).
+leave an empty pane / pop a confirm). `/brief help` prints the usage, in-dock
+keys, and docs pointers without touching the dock.
 
 !`"${CLAUDE_PLUGIN_ROOT}/bin/brief-open.sh" $ARGUMENTS`
 
-Acknowledge in ONE short line that the brief dock is up — or, if the command
-above reported an error, relay that error. Do NOT reproduce the brief here.
+If the argument was `help`, reproduce the command output above verbatim in a
+fenced code block — that output IS the answer. Otherwise acknowledge in ONE
+short line that the brief dock is up — and if the output includes a
+"brief: first dock" hint line, relay that hint too (it appears once, ever) — or,
+if the command above reported an error, relay that error. Do NOT reproduce the
+brief here.

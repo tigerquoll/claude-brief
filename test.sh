@@ -523,6 +523,24 @@ is "close -> tdrv_close(FAKEID)" "$(grep -c '^close FAKEID' /tmp/t-term 2>/dev/n
 is "close clears session file"   "$([ -f "$ST/$S.brief.session" ] && echo kept || echo gone)" gone
 rm -f "$ST/panes/FP"
 
+echo "BRIEF-OPEN — help prints usage + keys, needs no session, opens no dock"
+wipe; rm -f /tmp/t-term
+hout=$("$BIN/brief-open.sh" help 2>&1); hrc=$?
+is "help exits 0"              "$hrc" 0
+is "help shows usage"          "$(printf '%s\n' "$hout" | grep -c '^usage: ')" 1
+is "help shows in-dock keys"   "$(printf '%s\n' "$hout" | grep -c '^in-dock keys')" 1
+is "help links the README"     "$(printf '%s\n' "$hout" | grep -c 'github.com/tigerquoll/claude-brief#readme')" 1
+is "help opened no dock"       "$([ -f /tmp/t-term ] && echo opened || echo none)" none
+
+echo "BRIEF-OPEN — one-time first-run hint (sentinel-gated)"
+wipe; rm -f /tmp/t-term "$ST/.brief-help-hinted"; mkdir -p "$ST/panes"; printf '%s\n' "$S" > "$ST/panes/FP"
+h1=$(BRIEF_TERMINAL=fake "$BIN/brief-open.sh" 2>&1)
+h2=$(BRIEF_TERMINAL=fake "$BIN/brief-open.sh" 2>&1)
+is "first open prints the hint" "$(printf '%s\n' "$h1" | grep -c '^brief: first dock')" 1
+is "second open stays quiet"    "$(printf '%s\n' "$h2" | grep -c '^brief: first dock')" 0
+is "hint sentinel written"      "$([ -f "$ST/.brief-help-hinted" ] && echo yes || echo no)" yes
+rm -f "$ST/panes/FP" "$ST/.brief-help-hinted"
+
 echo "SESSION RESOLUTION — \$CLAUDE_CODE_SESSION_ID (resort #0) beats pane/cwd/newest"
 E=eeeeeeee-2222-3333-4444-555555555555
 # pane map points at $S, but the env var names a different (fresh) sid -> env wins.

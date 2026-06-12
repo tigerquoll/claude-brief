@@ -5,19 +5,59 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin roo
 # latest viewer. Terminal-agnostic via the pluggable driver layer
 # (bin/lib/terminal-driver.sh): iTerm2 / tmux / kitty / Apple Terminal, plus a
 # generic fallback. Run from /brief's bash (inherits the terminal's pane env).
-#   usage: brief-open.sh [float|refresh|close]
+#   usage: brief-open.sh [float|refresh|close|help]
 #     (default) dock : side-by-side split in the current window (a companion
 #                      window on Apple Terminal, which has no scriptable splits)
 #     float          : a separate window instead
 #     refresh        : regenerate the brief now (detached), then open the dock
 #     close          : tear down this session's dock (no reopen)
+#     help           : print usage + the in-dock keys + docs pointers; no dock action
 arg="${1:-}"; refresh=0
 case "$arg" in
   refresh) refresh=1; mode="dock" ;;
   float)   mode="float" ;;
   close)   mode="close" ;;
+  help)    mode="help" ;;
   *)       mode="dock" ;;
 esac
+
+# The slash command's name depends on the install path: bare /brief on a manual
+# ~/.claude install, the namespaced /claude-brief:brief as a plugin (where ROOT is
+# the plugin cache dir, not ~/.claude). Tab completes the prefix either way.
+cmd="/claude-brief:brief"
+[ "$ROOT" = "$HOME/.claude" ] && cmd="/brief"
+
+# help: needs no session, driver, or dock — print and stop.
+if [ "$mode" = help ]; then
+  cat <<EOF
+claude-brief — a live, auto-refreshing summary brief docked beside this session
+
+usage: $cmd [float|refresh|close|help]
+       (type /brief and press Tab — autocomplete fills in the rest)
+  (none)   open or re-focus the dock — a side-by-side split showing this
+           session's brief (a companion window on Apple Terminal)
+  float    open it as a separate window instead of a split
+  refresh  regenerate the brief now, instead of waiting for the next turn
+  close    tear the dock down — a clean, no-prompt close on every backend
+  help     this text
+
+in-dock keys (click the dock pane first):
+  r        refresh the brief now
+  a        toggle auto-refresh at the end of each turn (default: on)
+  i        toggle periodic refresh during a long turn (fires only on new activity)
+  + / -    adjust the refresh interval (30s-1h)
+  ?        key help
+  q        close the dock
+
+The brief updates after each turn that does real work (a small cost-gated Haiku
+call; trivial turns are skipped). Force a terminal backend with
+BRIEF_TERMINAL=<iterm2|tmux|kitty|wezterm|ghostty|terminal|tabby|generic>.
+
+Full docs (README): https://github.com/tigerquoll/claude-brief#readme
+EOF
+  [ -f "$ROOT/README.md" ] && echo "Installed copy:      $ROOT/README.md"
+  exit 0
+fi
 
 state_dir="$HOME/.claude/state"
 . "$ROOT/bin/lib/terminal-driver.sh"   # provides tdrv_name/self_pane/open/close
@@ -97,6 +137,13 @@ new_id=$(tdrv_open "$mode" "$pane" "$ROOT/bin/brief-view.sh" "$sid")
 if [ -n "$new_id" ]; then
   printf '%s %s\n' "$(tdrv_name)" "$new_id" > "$sess_file"
   echo "brief: dock ready for ${sid:0:8} (via=$via, term=$(tdrv_name), mode=$mode)"
+  # One-time first-run hint (sentinel-gated, like the glow note in session-start):
+  # point at the dock's own help key and the fuller /brief help.
+  hint_sentinel="$state_dir/.brief-help-hinted"
+  if [ ! -f "$hint_sentinel" ]; then
+    : > "$hint_sentinel"
+    echo "brief: first dock — click the dock pane and press ? for its keys; $cmd help has the full rundown (README: https://github.com/tigerquoll/claude-brief#readme)"
+  fi
 elif [ "$(tdrv_name)" = generic ] || [ "$(tdrv_name)" = tabby ]; then
   # generic + tabby can't script a dock; the driver may have printed a terminal-
   # specific hint to stderr — print the exact viewer command to run by hand.
