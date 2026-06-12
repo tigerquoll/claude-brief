@@ -29,9 +29,25 @@
 #   - fixed neutral working dir (no CLAUDE.md) -> byte-stable prefix, so the
 #     5-min prompt cache is reused across turns and across projects
 #   - Haiku model, no thinking
-NOTOOLS='Bash,Read,Edit,Write,Glob,Grep,Task,WebFetch,WebSearch,TodoWrite,NotebookEdit,BashOutput,KillShell,ExitPlanMode,SlashCommand'
+NOTOOLS='Bash,Read,Edit,Write,Glob,Grep,Task,WebFetch,WebSearch,TodoWrite,NotebookEdit,BashOutput,KillShell,ExitPlanMode,Skill'
 sumcwd="$HOME/.claude/state/.sumcwd"; mkdir -p "$sumcwd"
 cd "$sumcwd" 2>/dev/null || exit 1
+
+# Pin the SESSION'S effective endpoint through to the inner claude. Claude Code
+# applies settings-file env OVER the process env, so from this neutral cwd a
+# global settings-env ANTHROPIC_BASE_URL (e.g. a corporate gateway) re-points
+# this call even when the session's own project settings blanked it back to the
+# default — and an unauthenticated gateway call hangs until the worker's
+# watchdog kills it, so no brief is ever produced. A --settings env pin has top
+# precedence, so the value this script inherited from the session (or the
+# default endpoint when unset/blank) always wins. The pin lands inside JSON, so
+# accept only a plain URL-shaped value; anything else falls back to the default
+# endpoint rather than producing broken JSON.
+base="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+case "$base" in
+  http://*|https://*) case "$base" in *['"\ 	']*) base="https://api.anthropic.com" ;; esac ;;
+  *) base="https://api.anthropic.com" ;;
+esac
 export CLAUDE_TASK_SUMMARY=1            # so the inner claude's own hooks bail (the worker sets this too)
 export MAX_THINKING_TOKENS=0 DISABLE_INTERLEAVED_THINKING=1
 # Feed the prompt via stdin (an immediately-unlinked private temp file), not as a
@@ -44,6 +60,7 @@ exec 3<"$pf"; rm -f "$pf"
 exec claude -p \
   --append-system-prompt "$BRIEF_SYS" \
   --model "${ANTHROPIC_DEFAULT_HAIKU_MODEL:-claude-haiku-4-5}" \
+  --settings "{\"env\":{\"ANTHROPIC_BASE_URL\":\"$base\"}}" \
   --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
   --disallowedTools "$NOTOOLS" \
   <&3

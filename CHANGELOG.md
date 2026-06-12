@@ -11,6 +11,27 @@ that version into the tarball's `plugin.json` and commits the bump to `main` —
 bump commit always lands one commit *after* the tag. The dates below are the release
 dates.
 
+## Unreleased
+
+### Added
+- `/brief help` subcommand — usage, the in-dock keys, and docs pointers; needs no
+  session or dock. A one-time first-run hint after the first dock open points at
+  the dock's `?` key and `help`.
+
+### Fixed
+- **CLI summariser pins the session's effective endpoint** via a `--settings` env
+  override. Claude Code applies settings-file env over process env, so from the
+  summariser's neutral cwd a global settings-env `ANTHROPIC_BASE_URL` (e.g. a
+  corporate gateway) re-pointed the inner `claude -p` even when the session's own
+  project settings had blanked it — and the unauthenticated gateway call hung
+  until the watchdog killed it, so no brief was ever produced.
+- A rejected `BRIEF_SUMMARIZER` override is no longer silent: the reason (no such
+  file, literal `~`, outside `~/.claude`, bad perms…) is written to
+  `state/.brief-summarizer-warn` and surfaced at session start — and a rejected
+  override now counts as unset, so summariser auto-selection still applies.
+- Dropped the removed `SlashCommand` tool from the inner claude's disallowed-tools
+  list (Claude Code ≥2.1.x warned on it); `Skill` is disallowed instead.
+
 ## [1.3.0] — 2026-06-11
 
 ### Added

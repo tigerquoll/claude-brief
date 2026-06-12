@@ -97,21 +97,27 @@ mkfake t-hold.sh $'#!/usr/bin/env bash\necho x >>/tmp/t-lc\nperl -e "select(unde
 
 echo "WORKER — \$BRIEF_SUMMARIZER path validation (MIRROR of task-summary-worker.sh)"
 resolve(){ # echoes "override" if the value would be honoured, else "default"
-  local v=$1 out="default" perm; perm=$(stat -f %Lp "$v" 2>/dev/null || echo 777)
+  local v=$1 out="default" perm
   case "$v" in
     *..*) ;;
-    "$HOME"/.claude/*) [ -f "$v" ] && [ -x "$v" ] && [ -O "$v" ] && ! (( 8#$perm & 0002 )) && out="override" ;;
+    "$HOME"/.claude/*)
+      perm=$(stat -f %Lp "$v" 2>/dev/null || echo 777)
+      [ -f "$v" ] && [ -x "$v" ] && [ -O "$v" ] && ! (( 8#$perm & 0022 )) && out="override" ;;
   esac
   echo "$out"
 }
 in1="$BIN/t-ok.sh"; out1=/tmp/t-out.sh; printf '#!/bin/sh\n' >"$out1"; chmod 755 "$out1"
 ww="$BIN/t-ww.sh";  printf '#!/bin/sh\n' >"$ww"; chmod 757 "$ww"
+gw="$BIN/t-gw.sh";  printf '#!/bin/sh\n' >"$gw"; chmod 775 "$gw"
 is "under ~/.claude honoured" "$(resolve "$in1")" override
 is "outside ~/.claude rejected" "$(resolve "$out1")" default
 is "world-writable rejected"  "$(resolve "$ww")" default
+is "group-writable rejected"  "$(resolve "$gw")" default
 is "relative rejected"        "$(resolve "evil.sh")" default
 is "traversal rejected"       "$(resolve "$HOME/.claude/../tmp/x")" default
-rm -f "$out1" "$ww"
+# shellcheck disable=SC2088  # literal unexpanded tilde is exactly what's under test
+is "literal tilde rejected"   "$(resolve '~/.claude/bin/x.sh')" default
+rm -f "$out1" "$ww" "$gw"
 
 echo "STOP HOOK — cost gate + noauto (stubbed worker launch)"
 stub=/tmp/t-stop.sh
@@ -381,6 +387,73 @@ is "explicit: outcome=updated"        "$(cat "$ST/$S.brief.done" 2>/dev/null)" u
 is "explicit: explicit summariser ran" "$([ -f /tmp/t-expl-ran ] && echo ran || echo not-ran)" ran
 is "explicit: curl not invoked"       "$([ -f /tmp/t-expl-curl ] && echo called || echo not-called)" not-called
 rm -rf "$EXPLDIR" /tmp/t-expl-curl /tmp/t-expl-ran
+
+echo "WORKER — rejected BRIEF_SUMMARIZER warns + re-enables auto-selection"
+# A set-but-invalid override must (a) write .brief-summarizer-warn with the reason,
+# (b) count as unset for auto-selection — here creds are present, so the API
+# summariser should be picked, NOT the CLI default the old code silently fell to.
+REJDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-rej.XXXXXX")
+cat > "$REJDIR/curl" <<'CURLSTUB'
+#!/usr/bin/env bash
+cat > /dev/null
+printf '%s' '{"content":[{"type":"text","text":"goal: a\nnow: n\n===BRIEF===\n# A\n## State\n- s\n## Tried\n—\n## Gotchas\n—\n## Decisions\n—\n## Next / Open\n- n\n"}]}'
+CURLSTUB
+chmod +x "$REJDIR/curl"
+cat > "$REJDIR/claude" <<'CLAUDESTUB'
+#!/usr/bin/env bash
+echo CLAUDE_CALLED >> /tmp/t-rej-claude
+CLAUDESTUB
+chmod +x "$REJDIR/claude"
+wipe; rm -f /tmp/t-rej-claude "$ST/.brief-summarizer-warn"
+(
+  unset BRIEF_AUTO_API ANTHROPIC_API_KEY
+  export ANTHROPIC_AUTH_TOKEN=tok BRIEF_SUMMARIZER="$HOME/.claude/bin/does-not-exist.sh"
+  PATH="$REJDIR:$PATH" "$W" "$S" "$TP"
+)
+is "rejected: warn file written"   "$([ -f "$ST/.brief-summarizer-warn" ] && echo yes || echo no)" yes
+is "rejected: reason recorded"     "$(grep -c 'no such file' "$ST/.brief-summarizer-warn" 2>/dev/null)" 1
+is "rejected: auto-selection used" "$(cat "$ST/$S.brief.done" 2>/dev/null)" updated
+is "rejected: claude not invoked"  "$([ -f /tmp/t-rej-claude ] && echo called || echo not-called)" not-called
+# literal-tilde value (the real-world trap) gets its own reason
+wipe
+# shellcheck disable=SC2088  # literal unexpanded tilde is exactly what's under test
+( export BRIEF_SUMMARIZER='~/.claude/bin/x.sh' BRIEF_AUTO_API=0; "$W" "$S" "$TP" >/dev/null 2>&1 )
+is "rejected: tilde reason"        "$(grep -c 'literal ~' "$ST/.brief-summarizer-warn" 2>/dev/null)" 1
+# a VALID override clears the warn
+wipe
+( export BRIEF_SUMMARIZER="$BIN/t-ok.sh"; "$W" "$S" "$TP" >/dev/null 2>&1 )
+is "valid override clears warn"    "$([ -f "$ST/.brief-summarizer-warn" ] && echo kept || echo gone)" gone
+rm -rf "$REJDIR" /tmp/t-rej-claude
+
+echo "SESSION-START — surfaces the BRIEF_SUMMARIZER warn file"
+printf 'claude-brief: BRIEF_SUMMARIZER ignored — no such file: /x (using the default summariser; unset it or fix the path)\n' > "$ST/.brief-summarizer-warn"
+ssout=$(printf '{}' | bash "$HOOKS/session-start-hook.sh")
+is "warn in systemMessage" "$(printf '%s\n' "$ssout" | grep -c 'BRIEF_SUMMARIZER ignored')" 1
+rm -f "$ST/.brief-summarizer-warn"
+ssout=$(printf '{}' | bash "$HOOKS/session-start-hook.sh")
+is "no warn file -> quiet" "$(printf '%s\n' "$ssout" | grep -c 'BRIEF_SUMMARIZER')" 0
+
+echo "CLI SUMMARISER — pins the session's effective endpoint via --settings"
+# Settings env OVERRIDES process env, so the inner claude must get an explicit
+# --settings pin: the inherited ANTHROPIC_BASE_URL, or the default endpoint when
+# blank/unset/JSON-unsafe. The stub records claude's argv for inspection.
+PINDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-pin.XXXXXX")
+cat > "$PINDIR/claude" <<'PINSTUB'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > /tmp/t-pin-args
+cat > /dev/null
+PINSTUB
+chmod +x "$PINDIR/claude"
+run_sum(){ BRIEF_SYS=s BRIEF_USR=u PATH="$PINDIR:$PATH" "$BIN/brief-summarize.sh" >/dev/null 2>&1; }
+rm -f /tmp/t-pin-args
+( export ANTHROPIC_BASE_URL="https://gw.example.com"; run_sum )
+is "pin: inherited gateway kept"   "$(grep -c '"ANTHROPIC_BASE_URL":"https://gw.example.com"' /tmp/t-pin-args 2>/dev/null)" 1
+( export ANTHROPIC_BASE_URL=""; run_sum )
+is "pin: blank -> default"         "$(grep -c '"ANTHROPIC_BASE_URL":"https://api.anthropic.com"' /tmp/t-pin-args 2>/dev/null)" 1
+( export ANTHROPIC_BASE_URL='https://x"quote'; run_sum )
+is "pin: JSON-unsafe -> default"   "$(grep -c '"ANTHROPIC_BASE_URL":"https://api.anthropic.com"' /tmp/t-pin-args 2>/dev/null)" 1
+is "stale SlashCommand dropped"    "$(grep -c 'SlashCommand' /tmp/t-pin-args 2>/dev/null)" 0
+rm -rf "$PINDIR" /tmp/t-pin-args
 
 echo "VIEWER MATH — fmt_int / agebucket / interval ladder (MIRROR of brief-view.sh)"
 fmt_int(){ local s=$1; if [ "$s" -lt 60 ];then printf '%ss' "$s";elif [ "$s" -lt 3600 ];then printf '%dm' "$((s/60))";else printf '%dh' "$((s/3600))";fi; }

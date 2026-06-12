@@ -136,18 +136,39 @@ Produce PART 1, then the ===BRIEF=== marker line, then PART 2."
 # $EDITOR); the ~/.claude/ confinement + ownership/perm checks mean an override
 # you didn't set yourself (e.g. injected by an untrusted repo's project env, or a
 # relative / in-repo script) is ignored. Put a custom summariser in ~/.claude/bin/.
+# A rejected override is NOT silent: the reason is written to .brief-summarizer-warn
+# (surfaced by the SessionStart hook) — silently degrading to the default once
+# masked a misconfigured override (literal-tilde path) for days.
 summariser="$ROOT/bin/brief-summarize.sh"
+sum_warnf="$state_dir/.brief-summarizer-warn"
+sum_reject=""
 if [ -n "$BRIEF_SUMMARIZER" ]; then
-  perm=$(_perm "$BRIEF_SUMMARIZER")
   case "$BRIEF_SUMMARIZER" in
-    *..*) ;;                                            # reject path-traversal escapes
+    *..*) sum_reject="path contains .." ;;               # reject path-traversal escapes
     "$HOME"/.claude/*|"$ROOT"/*)                         # trusted: ~/.claude or the installed plugin root
-      [ -f "$BRIEF_SUMMARIZER" ] && [ -x "$BRIEF_SUMMARIZER" ] && [ -O "$BRIEF_SUMMARIZER" ] \
-        && ! (( 8#$perm & 0022 )) && summariser="$BRIEF_SUMMARIZER" ;;   # reject group/other-writable (matches the api-config check)
+      perm=$(_perm "$BRIEF_SUMMARIZER")
+      if   [ ! -f "$BRIEF_SUMMARIZER" ]; then sum_reject="no such file"
+      elif [ ! -x "$BRIEF_SUMMARIZER" ]; then sum_reject="not executable"
+      elif [ ! -O "$BRIEF_SUMMARIZER" ]; then sum_reject="not owned by you"
+      elif (( 8#$perm & 0022 ));         then sum_reject="group/other-writable (chmod 755 it)"   # matches the api-config check
+      else summariser="$BRIEF_SUMMARIZER"
+      fi ;;
+    "~"*) sum_reject="literal ~ (the shell that set it did not expand it; use \$HOME)" ;;
+    *)    sum_reject="outside ~/.claude and the plugin root" ;;
   esac
+  if [ -n "$sum_reject" ]; then
+    printf 'claude-brief: BRIEF_SUMMARIZER ignored — %s: %s (using the default summariser; unset it or fix the path)\n' \
+      "$sum_reject" "$BRIEF_SUMMARIZER" > "$sum_warnf"
+  else
+    rm -f "$sum_warnf"
+  fi
+else
+  rm -f "$sum_warnf"
 fi
 
-# Auto-selection: when $BRIEF_SUMMARIZER was NOT set, probe the API summariser to
+# Auto-selection: when $BRIEF_SUMMARIZER was NOT set — or was set but REJECTED
+# above (a rejected override is treated as unset, so a broken path degrades to
+# the same behaviour as no override at all) — probe the API summariser to
 # see if credentials are available and, if so, prefer it — it's ~5× cheaper for
 # API-billed sessions (skips the CLI's ~30k-token prefix). Explicitly opt out
 # with BRIEF_AUTO_API=0 (or "false") — useful for subscription / OAuth sessions
@@ -155,7 +176,7 @@ fi
 # Security: auto-selection only ever picks the SHIPPED $ROOT/bin/brief-summarize-api.sh,
 # so the ~/.claude-confinement validation above is not weakened.
 auto_selected=0   # 1 = the summariser was auto-picked from the API script
-if [ -z "${BRIEF_SUMMARIZER:-}" ]; then
+if [ -z "${BRIEF_SUMMARIZER:-}" ] || [ -n "$sum_reject" ]; then
   case "${BRIEF_AUTO_API:-}" in
     0|false) ;;   # user opted out of auto-selection
     *)

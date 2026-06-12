@@ -46,5 +46,16 @@ if [ -n "$brew" ] && [ "$(uname -s)" = Darwin ]; then   # Homebrew isn't guarant
   if command -v brew >/dev/null 2>&1; then msg="${msg} — run: brew install ${brew% }"
   else msg="${msg} — install ${brew% } (Homebrew: https://brew.sh)"; fi
 fi
+
+# Surface the worker's "BRIEF_SUMMARIZER ignored" note: the worker falls back to
+# the default summariser and keeps producing briefs, so without this the broken
+# override is invisible. Re-shown every session until the worker clears the file
+# (override fixed or unset). Sanitised for the JSON interpolation below.
+sum_warnf="$state/.brief-summarizer-warn"
+if [ -f "$sum_warnf" ]; then
+  # shellcheck disable=SC1003  # tr deletes double-quote + backslash; not an escape attempt
+  warn=$(head -c 250 "$sum_warnf" | tr -d '"\\' | tr '\n' ' ')
+  [ -n "$warn" ] && msg="${msg:+$msg; }${warn% }"
+fi
 [ -n "$msg" ] && printf '{"systemMessage":"%s"}\n' "$msg"
 exit 0
