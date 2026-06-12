@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date:** 9 June 2026
+**Effective date:** 12 June 2026
 **Plugin:** claude-brief &middot; **Maintainer:** Dale (tigerquoll@outlook.com) &middot; **Source:** <https://github.com/tigerquoll/claude-brief>
 
 ## Summary
@@ -38,16 +38,23 @@ session to a model.
 
 ### Where it goes
 
-By default the request goes to the **same gateway Claude Code already uses** — Anthropic,
-under your existing Claude Code / Anthropic agreement and
-[Anthropic's privacy policy](https://www.anthropic.com/legal/privacy). If you set
-`$BRIEF_SUMMARIZER` (or use the bundled API-direct summariser), the request goes to whatever
-endpoint you configure instead. claude-brief adds no destination of its own.
+By default the request goes to the **same endpoint your session is already using** —
+Anthropic, under your existing Claude Code / Anthropic agreement and
+[Anthropic's privacy policy](https://www.anthropic.com/legal/privacy). The default
+(`claude -p`) path explicitly **pins the session's effective `ANTHROPIC_BASE_URL`**
+into the call, so a differently-configured global gateway cannot silently reroute the
+summary somewhere your session isn't sending data anyway. If you set `$BRIEF_SUMMARIZER`
+or any `BRIEF_API_*` config, the request goes to whatever endpoint you configure instead.
+claude-brief adds no destination of its own.
 
-For API-billed sessions (when `ANTHROPIC_AUTH_TOKEN` or an approved `ANTHROPIC_API_KEY` is
-set), the summary request may be sent directly to your configured `ANTHROPIC_BASE_URL`
-endpoint via curl rather than through the `claude` CLI — same destination service, fewer
-layers.
+On **API-billed sessions** the bundled API-direct summariser is **selected
+automatically** — when `ANTHROPIC_AUTH_TOKEN` is set, an `ANTHROPIC_API_KEY` that you
+have approved for Claude Code use is present, or you've put `BRIEF_API_*` /
+`brief-summarizer.env` config in place. It sends the same request via curl to the same
+destination service your session uses (explicit `BRIEF_API_BASE` →
+`ANTHROPIC_BASE_URL` → Anthropic), just with fewer layers. Subscription (OAuth)
+sessions are never switched. Opt out of auto-selection entirely with
+`BRIEF_AUTO_API=0`.
 
 ## Local storage and retention
 
@@ -58,10 +65,14 @@ layers.
 
 ## Credentials (API-direct path only)
 
-If you opt into the API-direct summariser, your API token is read from an environment
-variable or a file you create (recommended `chmod 600`). The token is sent **only** as the
-`Authorization` header to the endpoint you configured — it is never logged and never
-transmitted anywhere else.
+When the API-direct summariser runs (auto-selected as above, or forced by you), it
+**reuses a credential your session already exposes** — `BRIEF_API_TOKEN` (or your
+`brief-summarizer.env` file, recommended `chmod 600`), else `ANTHROPIC_AUTH_TOKEN`, else
+an `ANTHROPIC_API_KEY` — and an API key is used **only if Claude Code has recorded your
+approval** of it, so a key you declined for Claude Code is never charged. The token is
+sent **only** as the `Authorization` header to the endpoint resolved above — it is never
+logged and never transmitted anywhere else. No new credential is created or stored by
+the plugin.
 
 ## The debug report (`/brief debug`)
 
