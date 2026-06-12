@@ -164,6 +164,8 @@ if [ "$mode" = debug ]; then
     else
       echo "failures:         none recorded"
     fi
+    f="$state_dir/$sid.brief.err"
+    echo "last failure:     $([ -f "$f" ] && scrub "$(cat "$f")" || echo "none recorded")"
     f="$state_dir/$sid.skipped"
     echo "last turn gated:  $([ -f "$f" ] && echo "yes ($(agef "$f"))" || echo no)"
     f="$state_dir/$sid.brief.session"
@@ -202,6 +204,12 @@ if [ "$mode" = debug ]; then
   else
     echo "preflight:        none for this backend"
   fi
+  # The dock pane runs the viewer under a LOGIN-shell PATH (not this session's),
+  # so bash 3.2 there means the pane opens and instantly dies. tail -1 keeps only
+  # our echo, not anything the user's login rc prints.
+  lb=$(perl -e 'alarm shift @ARGV; exec @ARGV' 8 bash -lc 'echo "$BASH_VERSION"' 2>/dev/null | tail -1)
+  lbnote=""; case "${lb%%.*}" in ''|*[!0-9]*|[0-4]) lbnote="  (dock viewer needs bash >= 5 on the login-shell PATH)" ;; esac
+  echo "login-shell bash: ${lb:-unknown}$lbnote"
   de="$state_dir/.brief-dock-err"
   echo "last dock error:  $([ -f "$de" ] && scrub "$(cat "$de")" || echo none)"
   echo

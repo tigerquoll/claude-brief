@@ -31,6 +31,23 @@ dates.
   a failed `tdrv_open`'s stderr is now persisted to `state/.brief-dock-err`
   (cleared on the next successful open) instead of being discarded.
 
+- **Privacy-preserving failure classification**: each failed summary attempt's
+  stderr is matched against fixed signatures and reduced to an enum (`timeout`,
+  `auth`, `network`, `permission-rule`, `api-error:<type>`, …) persisted to
+  `state/<sid>.brief.err`; the stderr **text is discarded, never written to
+  disk** — a live call's error output could echo conversation fragments. The
+  debug report shows it as `last failure:`; cleared on the next success.
+- **Backoff countdown in the dock footer** — during the 10-minute failure
+  backoff the footer now shows *"summary failing — auto-retry in ~Nm"* instead
+  of a stale "summary failed".
+- `login-shell bash:` probe in the debug `[dock]` section — the dock pane runs
+  the viewer under a login-shell PATH, where bash 3.2 makes the pane open and
+  instantly die.
+- README **Troubleshooting** section (the two looks-broken-but-isn't cases:
+  cost-gated trivial turns, failure backoff) + a GitHub issue template that asks
+  for the `/brief debug` output; PRIVACY.md now documents exactly what the debug
+  report does and does not collect.
+
 ### Fixed
 - The API summariser now reports the error response's `type`/`message` fields on
   stderr (length-capped, never the raw response) instead of exiting silently.

@@ -236,19 +236,45 @@ fi
 # the brief is never less reliable than before auto-selection was added. Explicit
 # BRIEF_SUMMARIZER keeps the original retry-same-script behaviour.
 _cli_default="$ROOT/bin/brief-summarize.sh"
+
+# Failure CLASSIFICATION (privacy-preserving): each failed attempt's stderr is
+# matched against fixed signatures to get an ENUM, then the text is DISCARDED —
+# a real call's stderr is unbounded and could echo conversation fragments, so it
+# is never persisted (see PRIVACY.md). Only the enum + rc + path label survive,
+# in $sid.brief.err, for `/brief debug` to report.
+sum_errf="$state_dir/$sid.brief.err"
+path_label="cli-default"
+if [ "$auto_selected" = 1 ]; then path_label="api-direct"
+elif [ "$summariser" != "$_cli_default" ]; then path_label="custom"; fi
+classify_err(){ # $1=rc $2=stderr-file -> enum word; never echoes file content
+  case "$1" in 124|142) echo timeout; return ;; esac
+  if   grep -qiE 'authentication_error|invalid bearer|invalid x-api-key' "$2" 2>/dev/null; then echo auth
+  elif grep -qiE 'not logged in|please run /login' "$2" 2>/dev/null; then echo not-logged-in
+  elif grep -qiE 'could not resolve|connection (refused|reset)|curl: \((6|7|28|35|52|56)\)' "$2" 2>/dev/null; then echo network
+  elif grep -qiE 'permission .*rule|disallowed' "$2" 2>/dev/null; then echo permission-rule
+  elif grep -qi  'brief-summarize-api: API error' "$2" 2>/dev/null; then
+    _t=$(sed -n 's/.*API error - \([a-z_]*\).*/\1/p' "$2" 2>/dev/null | head -1)
+    echo "api-error:${_t:-unknown}"
+  else echo unrecognised; fi
+}
+
+attempt_log=""
 res=""; rc=0
 for attempt in 1 2; do
+  aerr=$(mktemp "${TMPDIR:-/tmp}/brief-sum.XXXXXX")
   res=$( BRIEF_SYS="$sys" BRIEF_USR="$usr" CLAUDE_TASK_SUMMARY=1 \
           perl -e 'alarm shift @ARGV; exec @ARGV' "${BRIEF_SUMMARY_TIMEOUT:-90}" "$summariser" \
-          2>/dev/null )
+          2>"$aerr" )
   rc=$?   # 0 ok · 124/142 = watchdog timeout · other non-zero = summariser failure
-  [ -n "$(printf '%s' "$res" | tr -d '[:space:]')" ] && break   # got a result
-  case "$rc" in 124|142) break ;; esac                          # timed out -> a retry would just wait again
+  [ -n "$(printf '%s' "$res" | tr -d '[:space:]')" ] && { rm -f "$aerr"; break; }   # got a result
+  attempt_log="${attempt_log}attempt$attempt: $(classify_err "$rc" "$aerr") (rc=$rc, $path_label); "
+  rm -f "$aerr"                              # the stderr text ends here, unread by anything else
+  case "$rc" in 124|142) break ;; esac       # timed out -> a retry would just wait again
   if [ "$attempt" = 1 ]; then
     if [ "$auto_selected" = 1 ]; then
       # API script failed fast (non-timeout) — fall back to the CLI default for
       # attempt 2 so auto-selection never degrades reliability below the baseline.
-      summariser="$_cli_default"
+      summariser="$_cli_default"; path_label="cli-default"
     fi
     perl -e 'select(undef,undef,undef,1)'   # ~1s pause (perl, already a dep), then the single retry
   fi
@@ -293,11 +319,13 @@ else                              outcome=unchanged
 fi
 printf '%s\n' "$outcome" > "$done_stamp.tmp" && mv "$done_stamp.tmp" "$done_stamp"
 
-# Track consecutive failures for the backoff above (reset on any success).
+# Track consecutive failures for the backoff above (reset on any success), and
+# persist/clear the per-attempt failure classification alongside it.
 case "$outcome" in
   timeout|error) fc=0; [ -f "$failf" ] && { read -r fc _ < "$failf" 2>/dev/null; case "$fc" in ''|*[!0-9]*) fc=0 ;; esac; }
-                 printf '%s %s\n' "$((fc + 1))" "$(date +%s)" > "$failf" ;;
-  *)             rm -f "$failf" ;;
+                 printf '%s %s\n' "$((fc + 1))" "$(date +%s)" > "$failf"
+                 [ -n "$attempt_log" ] && printf '%s%s\n' "$attempt_log" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$sum_errf" ;;
+  *)             rm -f "$failf" "$sum_errf" ;;
 esac
 
 # Update the status label — but on a FAILED call keep the last-good one rather

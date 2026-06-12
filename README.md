@@ -121,6 +121,33 @@ Auto-detected; force one with `BRIEF_TERMINAL=<name>`. Most need no setup — a 
 - **Anything else → generic** — `/claude-brief:brief` prints the `brief-view.sh <sid>` command for
   you to run in a split you open yourself.
 
+## Troubleshooting
+
+**First step for anything:** run **`/claude-brief:brief debug`** — a sanitised
+diagnostic report (env presence/shapes only, never values; no conversation, brief,
+or window-title content) that you can paste straight into a
+[GitHub issue](https://github.com/tigerquoll/claude-brief/issues). It checks the
+install, the session's summary state, the dock backend (including a per-terminal
+preflight), and runs one tiny probe summary call.
+
+Two things that look like breakage but aren't:
+
+- **"No brief yet" after a turn** — trivial turns (no tool calls, barely any new
+  output) are *cost-gated* and skipped on purpose. The brief appears after the
+  next turn that does real work, or immediately via `/claude-brief:brief refresh`.
+- **The brief stops updating after a few failures** — 3 consecutive summary
+  failures trigger a 10-minute backoff (the dock footer shows *"summary failing —
+  auto-retry in ~Nm"*). The first success resets it. The debug report's
+  `failures:` line shows the countdown and the `last failure:` line shows *why*
+  (as a category — `timeout`, `auth`, `network`, … — never the raw error text).
+
+Common real ones: the dock pane opens then instantly dies → the *login-shell*
+PATH resolves bash < 5 (`brew install bash`; the debug report's `login-shell
+bash:` line checks this); kitty does nothing → socket remote control isn't set up
+(see [Terminals](#terminals)); ghostty / Apple Terminal / iTerm2 do nothing → the
+one-time macOS Automation approval was missed or denied (the debug preflight shows
+`TCC -1743`; re-allow under System Settings ▸ Privacy & Security ▸ Automation).
+
 ## Dock styling
 **1.2× line spacing** noticeably improves reading the brief *at a glance* — the extra
 breathing room lets you take in State · Decisions · Next in a single look rather than

@@ -427,6 +427,17 @@ wipe
 is "valid override clears warn"    "$([ -f "$ST/.brief-summarizer-warn" ] && echo kept || echo gone)" gone
 rm -rf "$REJDIR" /tmp/t-rej-claude
 
+echo "WORKER — failure classification: enum persisted, stderr text discarded"
+mkfake t-auth-fail.sh $'#!/usr/bin/env bash\necho "oops authentication_error: SECRETDETAIL xyz" >&2\nexit 1\n'
+wipe
+( export BRIEF_SUMMARIZER="$BIN/t-auth-fail.sh" BRIEF_AUTO_API=0; "$W" "$S" "$TP" >/dev/null 2>&1 )
+is "fail run: outcome=error"      "$(cat "$ST/$S.brief.done" 2>/dev/null)" error
+is "class=auth persisted"         "$(grep -c 'attempt1: auth (rc=1, custom)' "$ST/$S.brief.err" 2>/dev/null)" 1
+is "stderr text discarded"        "$(grep -c 'SECRETDETAIL' "$ST/$S.brief.err" 2>/dev/null)" 0
+( export BRIEF_SUMMARIZER="$BIN/t-ok.sh"; "$W" "$S" "$TP" >/dev/null 2>&1 )
+is "success clears class file"    "$([ -f "$ST/$S.brief.err" ] && echo kept || echo gone)" gone
+wipe
+
 echo "SESSION-START — surfaces the BRIEF_SUMMARIZER warn file"
 printf 'claude-brief: BRIEF_SUMMARIZER ignored - no such file: /x (using the default summariser; unset it or fix the path)\n' > "$ST/.brief-summarizer-warn"
 ssout=$(printf '{}' | bash "$HOOKS/session-start-hook.sh")
@@ -476,6 +487,7 @@ wipe; mkdir -p "$ST/panes"; printf '%s\n' "$S" > "$ST/panes/FP"
 printf 'error\n' > "$ST/$S.brief.done"; printf '3 %s\n' "$(date +%s)" > "$ST/$S.brief.fail"
 printf 'tmux %%1\n' > "$ST/$S.brief.session"                      # opened by ANOTHER driver -> mismatch
 printf '2026-01-01T00:00:00Z fake (rc=1): boom sk-ant-LEAKME99\n' > "$ST/.brief-dock-err"
+printf 'attempt1: timeout (rc=124, cli-default); 2026-01-01T00:00:00Z\n' > "$ST/$S.brief.err"
 dbg=$(
   unset BRIEF_SUMMARIZER BRIEF_AUTO_API ANTHROPIC_AUTH_TOKEN BRIEF_API_TOKEN BRIEF_API_BASE
   export ANTHROPIC_API_KEY="t0p-secret-value-do-not-leak"
@@ -497,6 +509,8 @@ is "dock: preflight ran"         "$(printf '%s\n' "$dbg" | grep -c 'fake preflig
 is "dock: driver mismatch flag"  "$(printf '%s\n' "$dbg" | grep -c 'MISMATCH vs detected')" 1
 is "dock: last error shown"      "$(printf '%s\n' "$dbg" | grep -c 'last dock error:.*boom')" 1
 is "dock: last error scrubbed"   "$(printf '%s\n' "$dbg" | grep -c 'LEAKME99')" 0
+is "dock: login-shell bash line" "$(printf '%s\n' "$dbg" | grep -c '^login-shell bash:')" 1
+is "session: last failure class" "$(printf '%s\n' "$dbg" | grep -c 'last failure:.*timeout (rc=124')" 1
 rm -f "$ST/.brief-dock-err"
 rm -rf "$DBGDIR"; rm -f "$ST/panes/FP"; wipe
 

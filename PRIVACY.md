@@ -63,6 +63,28 @@ variable or a file you create (recommended `chmod 600`). The token is sent **onl
 `Authorization` header to the endpoint you configured — it is never logged and never
 transmitted anywhere else.
 
+## The debug report (`/brief debug`)
+
+The `debug` subcommand prints a diagnostic report designed to be **safe to paste into a
+public GitHub issue**. It collects by *allowlist* — only facts that cannot leak content:
+
+- Versions, install shape, dependency presence, and the detected terminal backend.
+- State-file **ages and outcome words** (`updated` / `error` / …), never their content —
+  the brief itself is never included.
+- Environment variables as **presence and length only** (`set(len 47)` / `blank` /
+  `unset`), never values; the API endpoint only as `default` vs `custom`.
+- Summary **failure categories** (`timeout`, `auth`, `network`, …): when a real summary
+  call fails, its stderr is matched against fixed signatures and then **discarded** —
+  the text is never written to disk, because a live call's error output could in
+  principle echo conversation fragments.
+- One probe summary call with a **fixed, generic prompt** (so its output and stderr
+  contain nothing of yours); the stderr shown is scrubbed of key-shaped strings.
+- No window or tab titles, no pane contents, no transcript text. Paths render with
+  `$HOME` as `~`; session ids are truncated.
+
+Nothing about the report is transmitted anywhere by the plugin — it is printed in your
+terminal, and sharing it is entirely your action.
+
 ## What the plugin does NOT do
 
 - No telemetry, analytics, usage tracking, or crash reporting.

@@ -265,9 +265,22 @@ while :; do
       dm=$(_mtime "$donef")
       if [ "$dm" != "$done_mt" ]; then
         done_mt=$dm; was_ours=$refreshing; refreshing=0; spinframe=""; last_intv=$EPOCHSECONDS   # any completed refresh (incl. UNCHANGED) resets the interval timer
-        case "$(cat "$donef" 2>/dev/null)" in
-          timeout)   rtail=' · ⚠ summary timed out'; rtail_until=$(( EPOCHSECONDS + MSG_SECS )) ;;
-          error)     rtail=' · ⚠ summary failed';    rtail_until=$(( EPOCHSECONDS + MSG_SECS )) ;;
+        oc=$(cat "$donef" 2>/dev/null)
+        case "$oc" in
+          timeout|error)
+            rtail=' · ⚠ summary timed out'; [ "$oc" = error ] && rtail=' · ⚠ summary failed'
+            # Backoff visibility: after MAXFAIL consecutive failures the worker
+            # pauses retries for COOLDOWN (3 / 600s — MIRROR of task-summary-worker.sh);
+            # without this line the pause reads as the brief silently dying.
+            if read -r _fc _ft _ < "$state_dir/$sid.brief.fail" 2>/dev/null; then
+              case "$_fc" in ''|*[!0-9]*) _fc=0 ;; esac; case "$_ft" in ''|*[!0-9]*) _ft=0 ;; esac
+              _left=$(( 600 - (EPOCHSECONDS - _ft) ))
+              if [ "$_fc" -ge 3 ] && [ "$_left" -gt 0 ]; then
+                rtail=" · ⚠ summary failing — auto-retry in ~$(( (_left + 59) / 60 ))m"
+              fi
+            fi
+            rtail_until=$(( EPOCHSECONDS + MSG_SECS ))
+            ;;
           unchanged) [ "$was_ours" = 1 ] && { rtail=' · ✓ no change'; rtail_until=$(( EPOCHSECONDS + MSG_SECS )); } ;;
           *)         : ;;   # updated/unknown -> the content redraw speaks for itself
         esac
