@@ -457,6 +457,42 @@ is "pin: JSON-unsafe -> default"   "$(grep -c '"ANTHROPIC_BASE_URL":"https://api
 is "stale SlashCommand dropped"    "$(grep -c 'SlashCommand' /tmp/t-pin-args 2>/dev/null)" 0
 rm -rf "$PINDIR" /tmp/t-pin-args
 
+echo "BRIEF-OPEN — debug report: allowlisted, sanitised, probe-stubbed"
+# The claude stub answers the probe AND emits a key-shaped string on stderr, so the
+# scrubber is exercised. No API creds are exported -> the probe picks the CLI default.
+DBGDIR=$(mktemp -d "${TMPDIR:-/tmp}/t-dbg.XXXXXX")
+cat > "$DBGDIR/claude" <<'DBGSTUB'
+#!/usr/bin/env bash
+[ "${1:-}" = "--version" ] && { echo "9.9.9 (stub)"; exit 0; }
+echo "config warn: sk-ant-SUPERSECRET99 Bearer hunter2-token" >&2
+echo OK
+DBGSTUB
+chmod +x "$DBGDIR/claude"
+# the fake terminal driver (the TERMINAL DRIVER section below re-creates it with
+# the same content — this block just runs first)
+mkdir -p "$BIN/term/common"
+printf '%s' $'tdrv_name(){ printf fake; }\ntdrv_self_pane(){ printf FP; }\ntdrv_open(){ echo "open $*" >>/tmp/t-term; printf FAKEID; }\ntdrv_close(){ echo "close $*" >>/tmp/t-term; }\n' > "$BIN/term/common/fake.sh"
+wipe; mkdir -p "$ST/panes"; printf '%s\n' "$S" > "$ST/panes/FP"
+printf 'error\n' > "$ST/$S.brief.done"; printf '3 %s\n' "$(date +%s)" > "$ST/$S.brief.fail"
+dbg=$(
+  unset BRIEF_SUMMARIZER BRIEF_AUTO_API ANTHROPIC_AUTH_TOKEN BRIEF_API_TOKEN BRIEF_API_BASE
+  export ANTHROPIC_API_KEY="t0p-secret-value-do-not-leak"
+  BRIEF_TERMINAL=fake PATH="$DBGDIR:$PATH" "$BIN/brief-open.sh" debug 2>&1
+); dbgrc=$?
+is "debug exits 0"               "$dbgrc" 0
+for sect in install session summariser probe; do
+  is "debug has [$sect]"         "$(printf '%s\n' "$dbg" | grep -c "^\[$sect\]")" 1
+done
+is "debug shows key shape only"  "$(printf '%s\n' "$dbg" | grep -c 'ANTHROPIC_API_KEY: *set(len')" 1
+is "debug leaks no env value"    "$(printf '%s\n' "$dbg" | grep -c 't0p-secret-value')" 0
+is "debug masks home dir"        "$(printf '%s\n' "$dbg" | grep -c "$HOME")" 0
+is "debug shows backoff ACTIVE"  "$(printf '%s\n' "$dbg" | grep -c 'backoff: ACTIVE')" 1
+is "debug truncates sid"         "$(printf '%s\n' "$dbg" | grep -c "$S")" 0
+is "debug probe ran (rc=0, out)" "$(printf '%s\n' "$dbg" | grep -c 'rc=0 .*output: yes')" 1
+is "debug scrubs sk-ant key"     "$(printf '%s\n' "$dbg" | grep -c 'SUPERSECRET99')" 0
+is "debug scrubs bearer token"   "$(printf '%s\n' "$dbg" | grep -c 'hunter2')" 0
+rm -rf "$DBGDIR"; rm -f "$ST/panes/FP"; wipe
+
 echo "VIEWER MATH — fmt_int / agebucket / interval ladder (MIRROR of brief-view.sh)"
 fmt_int(){ local s=$1; if [ "$s" -lt 60 ];then printf '%ss' "$s";elif [ "$s" -lt 3600 ];then printf '%dm' "$((s/60))";else printf '%dh' "$((s/3600))";fi; }
 is "fmt 30s"  "$(fmt_int 30)" 30s

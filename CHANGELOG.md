@@ -11,6 +11,22 @@ that version into the tarball's `plugin.json` and commits the bump to `main` —
 bump commit always lands one commit *after* the tag. The dates below are the release
 dates.
 
+## Unreleased
+
+### Added
+- `/brief debug` — a sanitised, copy-pasteable diagnostic report for bug reports.
+  Collects by allowlist (versions, state-file ages, the last outcome and backoff
+  status, summariser resolution incl. why an override was rejected, env-var
+  *presence and length* only — never values — and one 20s-capped probe summary
+  call with scrubbed stderr). `$HOME` renders as `~`; key-shaped strings are
+  masked. When an auto-selected API probe fails, the CLI fallback is probed too —
+  mirroring the worker — so a failing-but-recovering setup reads as exactly that.
+  Safe to paste into a public GitHub issue.
+
+### Fixed
+- The API summariser now reports the error response's `type`/`message` fields on
+  stderr (length-capped, never the raw response) instead of exiting silently.
+
 ## [1.4.0] — 2026-06-12
 
 ### Added

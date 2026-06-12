@@ -63,6 +63,7 @@ autocomplete fills in the `claude-brief:` prefix for you):
 | `/claude-brief:brief refresh` | Regenerate the brief now, instead of waiting for the next turn |
 | `/claude-brief:brief close` | Tear the dock down — a clean, no-prompt close on every backend |
 | `/claude-brief:brief help` | Print the usage, the in-dock keys, and docs pointers — no dock action |
+| `/claude-brief:brief debug` | Print a sanitised diagnostic report for bug reports — env presence/shapes only (never values), no brief/transcript content, plus one tiny probe summary call. Safe to paste into a GitHub issue |
 
 Once it's open, **the in-dock keys are what you'll use most** — click the pane, then press:
 

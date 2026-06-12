@@ -12,12 +12,14 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin roo
 #     refresh        : regenerate the brief now (detached), then open the dock
 #     close          : tear down this session's dock (no reopen)
 #     help           : print usage + the in-dock keys + docs pointers; no dock action
+#     debug          : print a sanitised diagnostic report (for bug reports); no dock action
 arg="${1:-}"; refresh=0
 case "$arg" in
   refresh) refresh=1; mode="dock" ;;
   float)   mode="float" ;;
   close)   mode="close" ;;
   help)    mode="help" ;;
+  debug)   mode="debug" ;;
   *)       mode="dock" ;;
 esac
 
@@ -32,7 +34,7 @@ if [ "$mode" = help ]; then
   cat <<EOF
 claude-brief — a live, auto-refreshing summary brief docked beside this session
 
-usage: $cmd [float|refresh|close|help]
+usage: $cmd [float|refresh|close|help|debug]
        (type /brief and press Tab — autocomplete fills in the rest)
   (none)   open or re-focus the dock — a side-by-side split showing this
            session's brief (a companion window on Apple Terminal)
@@ -40,6 +42,9 @@ usage: $cmd [float|refresh|close|help]
   refresh  regenerate the brief now, instead of waiting for the next turn
   close    tear the dock down — a clean, no-prompt close on every backend
   help     this text
+  debug    print a sanitised diagnostic report to paste into a bug report
+           (no env values, no brief/transcript content; runs one tiny probe
+           summary call, so it can cost ~1c)
 
 in-dock keys (click the dock pane first):
   r        refresh the brief now
@@ -95,10 +100,151 @@ if [ -z "$sid" ]; then
   [ -n "$newest" ] && { sid=$(basename "$newest" .brief.md); via="newest"; }
 fi
 
-[ -z "$sid" ] && { echo "brief: couldn't determine the current session id (no pane/cwd map, no briefs yet)"; exit 1; }
+if [ -z "$sid" ] && [ "$mode" != debug ]; then   # debug still reports without a sid
+  echo "brief: couldn't determine the current session id (no pane/cwd map, no briefs yet)"; exit 1
+fi
 # Defense-in-depth: sid is interpolated into the driver's launch command, so
 # require a UUID-shaped value (hex + dashes only) and refuse anything else.
-case "$sid" in *[!0-9a-fA-F-]*) echo "brief: refusing — session id is not UUID-shaped"; exit 1 ;; esac
+case "$sid" in *[!0-9a-fA-F-]*)
+  if [ "$mode" = debug ]; then sid=""
+  else echo "brief: refusing — session id is not UUID-shaped"; exit 1; fi ;;
+esac
+
+# /brief debug: a copy-pasteable diagnostic report — no dock action. SANITISED BY
+# ALLOWLIST: only presence/shape/enum facts are collected (env VALUES are never
+# read into the report — lengths only), $HOME renders as ~, and the one
+# free-text field (probe stderr) is scrubbed of key-shaped strings and capped.
+# Safe to paste into a public GitHub issue.
+if [ "$mode" = debug ]; then
+  . "$ROOT/bin/lib/portable.sh"          # _mtime/_perm
+  now=$(date +%s)
+  scrub(){ # free text -> printable ASCII, $HOME->~, key-shaped strings masked, capped
+    printf '%s' "${1//$HOME/\~}" | LC_ALL=C tr -cd ' -~' \
+      | sed -E -e 's/sk-ant-[A-Za-z0-9_-]+/sk-ant-.../g' -e 's/[Bb]earer +[^ ]+/Bearer .../g' \
+      | cut -c1-200; }
+  shape(){ # env var NAME -> "set(len N)" | blank | unset — never the value
+    if eval "[ -z \"\${$1+x}\" ]"; then echo unset
+    elif eval "[ -z \"\$$1\" ]"; then echo blank
+    else eval "echo \"set(len \${#$1})\""; fi; }
+  agef(){ local m; m=$(_mtime "$1"); [ "$m" = 0 ] && { echo absent; return; }; echo "$((now - m))s ago"; }
+
+  echo "claude-brief debug report ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+  echo
+  echo "[install]"
+  inst="plugin"; [ "$ROOT" = "$HOME/.claude" ] && inst="manual"
+  echo "root:             ${ROOT//$HOME/\~}  [$inst install]"
+  pv="unknown"
+  [ -f "$ROOT/.claude-plugin/plugin.json" ] && command -v jq >/dev/null 2>&1 \
+    && pv=$(jq -r '.version // "unset"' "$ROOT/.claude-plugin/plugin.json" 2>/dev/null)
+  echo "plugin version:   $pv"
+  if [ "$inst" = plugin ] && [ -f "$HOME/.claude/hooks/task-summary-hook.sh" ]; then
+    echo "WARNING:          a manual ~/.claude install is ALSO present — hooks may double-fire"
+  fi
+  echo "claude CLI:       $(perl -e 'alarm shift @ARGV; exec @ARGV' 8 claude --version 2>/dev/null | head -1 || echo not-found)"
+  echo "bash:             $BASH_VERSION   os: $(uname -sr)"
+  deps=""; for d in jq glow bat perl; do
+    command -v "$d" >/dev/null 2>&1 && deps="$deps$d " || deps="$deps$d(MISSING) "; done
+  echo "deps:             $deps"
+  echo "terminal:         $(tdrv_name)   TERM_PROGRAM: ${TERM_PROGRAM:-unset}"
+  echo
+  echo "[session]"
+  if [ -n "$sid" ]; then
+    echo "sid:              ${sid:0:8} (via=$via)"
+    f="$state_dir/$sid.brief.md"
+    echo "brief.md:         $([ -f "$f" ] && echo "present ($(agef "$f"))" || echo absent)"
+    f="$state_dir/$sid.brief.done"
+    echo "last outcome:     $([ -f "$f" ] && echo "$(cat "$f" | head -1 | cut -c1-20) ($(agef "$f"))" || echo "none recorded")"
+    f="$state_dir/$sid.brief.fail"
+    if [ -f "$f" ]; then
+      read -r fc ft _ < "$f" 2>/dev/null
+      case "$fc" in ''|*[!0-9]*) fc=0 ;; esac; case "$ft" in ''|*[!0-9]*) ft=0 ;; esac
+      left=$((600 - (now - ft))); bk="inactive"
+      [ "$fc" -ge 3 ] && [ "$left" -gt 0 ] && bk="ACTIVE, ${left}s left"
+      echo "failures:         $fc consecutive, last $((now - ft))s ago (backoff: $bk)"
+    else
+      echo "failures:         none recorded"
+    fi
+    f="$state_dir/$sid.skipped"
+    echo "last turn gated:  $([ -f "$f" ] && echo "yes ($(agef "$f"))" || echo no)"
+    f="$state_dir/$sid.brief.session"
+    echo "dock open:        $([ -f "$f" ] && echo "yes ($(agef "$f"))" || echo no)"
+  else
+    echo "sid:              UNRESOLVED — no \$CLAUDE_CODE_SESSION_ID, pane/cwd map, or briefs"
+  fi
+  w="$state_dir/.brief-summarizer-warn"
+  echo "warn:             $([ -f "$w" ] && scrub "$(cat "$w")" || echo none)"
+  echo
+  echo "[summariser]"
+  bs="${BRIEF_SUMMARIZER-}"
+  verdict="honoured"
+  if [ -z "$bs" ]; then
+    echo "BRIEF_SUMMARIZER: unset"
+  else
+    # MIRROR of task-summary-worker.sh validation — keep in sync
+    case "$bs" in
+      *..*) verdict="REJECTED: path contains .." ;;
+      "$HOME"/.claude/*|"$ROOT"/*)
+        perm=$(_perm "$bs")
+        if   [ ! -f "$bs" ]; then verdict="REJECTED: no such file"
+        elif [ ! -x "$bs" ]; then verdict="REJECTED: not executable"
+        elif [ ! -O "$bs" ]; then verdict="REJECTED: not owned by you"
+        elif (( 8#$perm & 0022 )); then verdict="REJECTED: group/other-writable"
+        fi ;;
+      "~"*) verdict="REJECTED: literal ~ (unexpanded; use \$HOME)" ;;
+      *)    verdict="REJECTED: outside ~/.claude and the plugin root" ;;
+    esac
+    echo "BRIEF_SUMMARIZER: ${bs//$HOME/\~} -> $verdict"
+  fi
+  echo "BRIEF_AUTO_API:   ${BRIEF_AUTO_API:-unset}"
+  src=$("$ROOT/bin/brief-summarize-api.sh" --check 2>/dev/null) || src=""
+  echo "api --check:      ${src:-no credentials resolved}"
+  for v in ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY \
+           ANTHROPIC_DEFAULT_HAIKU_MODEL BRIEF_API_BASE BRIEF_API_TOKEN \
+           BRIEF_API_MODEL BRIEF_SUMMARY_TIMEOUT; do
+    printf '%-30s %s\n' "$v:" "$(shape "$v")"
+  done
+  echo "endpoint:         $([ -n "${ANTHROPIC_BASE_URL:-}" ] && echo custom || echo default)  (values never included)"
+  f="$HOME/.claude/brief-summarizer.env"
+  echo "summarizer.env:   $([ -f "$f" ] && echo "present (perms $(_perm "$f"))" || echo absent)"
+  echo
+  echo "[probe] one tiny summary call, 20s cap"
+  # What the worker would pick (MIRROR, simplified — the api-key approval check
+  # happens at worker runtime, so an unapproved key probes the CLI default here).
+  probe="$ROOT/bin/brief-summarize.sh"; which_p="cli-default"
+  if [ -n "$bs" ] && [ "$verdict" = honoured ]; then
+    probe="$bs"; which_p="explicit override"
+  else
+    case "${BRIEF_AUTO_API:-}" in
+      0|false) ;;
+      *) case "$src" in brief|auth-token) probe="$ROOT/bin/brief-summarize-api.sh"; which_p="api-direct (auto)" ;; esac ;;
+    esac
+  fi
+  run_probe(){ # $1=script $2=label — prints result/stderr lines for one probe call
+    local perr t0 pout prc pdur pres el
+    perr=$(mktemp "${TMPDIR:-/tmp}/brief-dbg.XXXXXX")
+    t0=$(date +%s)
+    pout=$(BRIEF_SYS="Reply with the single word OK." BRIEF_USR="OK?" CLAUDE_TASK_SUMMARY=1 \
+           perl -e 'alarm shift @ARGV; exec @ARGV' 20 "$1" 2>"$perr")
+    prc=$?
+    pdur=$(( $(date +%s) - t0 ))
+    pres="rc=$prc in ${pdur}s, output: $([ -n "$(printf '%s' "$pout" | tr -d '[:space:]')" ] && echo yes || echo EMPTY)"
+    case "$prc" in 124|142) pres="$pres (TIMEOUT — the call hung)" ;; esac
+    printf '%-18s%s\n' "$2" "$pres"
+    el=$(head -1 "$perr" 2>/dev/null); rm -f "$perr"
+    [ -n "$el" ] && printf '%-18s%s\n' "  stderr:" "$(scrub "$el")"
+    return "$prc"
+  }
+  echo "summariser:       $which_p"
+  if ! run_probe "$probe" "result:"; then
+    # Mirror the worker: an auto-selected API path that fails fast falls back to
+    # the CLI default — probe that too, so "probe failed but briefs still work"
+    # reads as the fallback saving the turn, not a contradiction.
+    if [ "$which_p" = "api-direct (auto)" ]; then
+      run_probe "$ROOT/bin/brief-summarize.sh" "cli fallback:" || true
+    fi
+  fi
+  exit 0
+fi
 
 # /brief refresh: regenerate the brief NOW (detached); the dock picks up the new
 # brief.md via its mtime watch a few seconds later. Otherwise the brief refreshes

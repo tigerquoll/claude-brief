@@ -90,7 +90,14 @@ resp=$(printf '%s\n' "$auth_header_line" \
       "${base%/}/v1/messages") || exit 1
 
 # Anthropic Messages response: { content: [ {type:"text", text:"…"}, … ], … }.
-# On an error response there's no .content[].text, so $text is empty -> exit 1.
+# On an error response there's no .content[].text, so $text is empty -> exit 1 —
+# but first surface the error's type/message fields on stderr (ONLY those two
+# server-generated fields, length-capped; never the raw response), so callers
+# like the worker's log and `/brief debug`'s probe have something to report.
 text=$(printf '%s' "$resp" | jq -r '[.content[]? | select(.type=="text") | .text] | join("")' 2>/dev/null)
-[ -n "$text" ] || exit 1
+if [ -z "$text" ]; then
+  err=$(printf '%s' "$resp" | jq -r '.error | "\(.type // "unknown"): \(.message // "no message")"' 2>/dev/null | head -1 | cut -c1-160)
+  echo "brief-summarize-api: API error - ${err:-unparseable response}" >&2
+  exit 1
+fi
 printf '%s\n' "$text"
