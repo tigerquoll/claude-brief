@@ -157,7 +157,9 @@ if [ -n "$BRIEF_SUMMARIZER" ]; then
     *)    sum_reject="outside ~/.claude and the plugin root" ;;
   esac
   if [ -n "$sum_reject" ]; then
-    printf 'claude-brief: BRIEF_SUMMARIZER ignored — %s: %s (using the default summariser; unset it or fix the path)\n' \
+    # ASCII-only on purpose: the SessionStart hook truncates this by BYTES for the
+    # systemMessage JSON — multibyte chars could be cut mid-rune.
+    printf 'claude-brief: BRIEF_SUMMARIZER ignored - %s: %s (using the default summariser; unset it or fix the path)\n' \
       "$sum_reject" "$BRIEF_SUMMARIZER" > "$sum_warnf"
   else
     rm -f "$sum_warnf"

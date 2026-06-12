@@ -173,7 +173,12 @@ uses — the right choice on a subscription, where it's included in the plan:
   Subscription (OAuth) sessions are never switched. (`apiKeyHelper`-based auth is
   not auto-detected — set `BRIEF_SUMMARIZER` manually in that case.)
 
-  - **Force it on:** `export BRIEF_SUMMARIZER=~/.claude/bin/brief-summarize-api.sh`
+  - **Force it on:** put any `BRIEF_API_*` setting (or `brief-summarizer.env`) in
+    place — that alone selects the API path. (On a *manual* install you can also pin
+    `export BRIEF_SUMMARIZER="$HOME/.claude/bin/brief-summarize-api.sh"` — but not on
+    a plugin install, where the script lives in the plugin, not `~/.claude/bin/`.
+    A `BRIEF_SUMMARIZER` that doesn't resolve is reported at session start and
+    treated as unset.)
   - **Force it off:** `export BRIEF_AUTO_API=0` (skips auto-detection entirely)
   - **Configure independently** of the main session via `BRIEF_API_BASE` /
     `BRIEF_API_TOKEN` / `BRIEF_API_MODEL` (override the shared `ANTHROPIC_*`), or

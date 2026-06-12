@@ -45,7 +45,7 @@ cd "$sumcwd" 2>/dev/null || exit 1
 # endpoint rather than producing broken JSON.
 base="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
 case "$base" in
-  http://*|https://*) case "$base" in *['"\ 	']*) base="https://api.anthropic.com" ;; esac ;;
+  http://*|https://*) case "$base" in *[$'"\\ \t\n\r']*) base="https://api.anthropic.com" ;; esac ;;
   *) base="https://api.anthropic.com" ;;
 esac
 export CLAUDE_TASK_SUMMARY=1            # so the inner claude's own hooks bail (the worker sets this too)

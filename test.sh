@@ -417,7 +417,9 @@ is "rejected: claude not invoked"  "$([ -f /tmp/t-rej-claude ] && echo called ||
 # literal-tilde value (the real-world trap) gets its own reason
 wipe
 # shellcheck disable=SC2088  # literal unexpanded tilde is exactly what's under test
-( export BRIEF_SUMMARIZER='~/.claude/bin/x.sh' BRIEF_AUTO_API=0; "$W" "$S" "$TP" >/dev/null 2>&1 )
+# (PATH keeps the claude stub first: the rejected override falls back to the CLI
+# default, which execs `claude` — never the real one from a test)
+( export BRIEF_SUMMARIZER='~/.claude/bin/x.sh' BRIEF_AUTO_API=0; PATH="$REJDIR:$PATH" "$W" "$S" "$TP" >/dev/null 2>&1 )
 is "rejected: tilde reason"        "$(grep -c 'literal ~' "$ST/.brief-summarizer-warn" 2>/dev/null)" 1
 # a VALID override clears the warn
 wipe
@@ -426,7 +428,7 @@ is "valid override clears warn"    "$([ -f "$ST/.brief-summarizer-warn" ] && ech
 rm -rf "$REJDIR" /tmp/t-rej-claude
 
 echo "SESSION-START — surfaces the BRIEF_SUMMARIZER warn file"
-printf 'claude-brief: BRIEF_SUMMARIZER ignored — no such file: /x (using the default summariser; unset it or fix the path)\n' > "$ST/.brief-summarizer-warn"
+printf 'claude-brief: BRIEF_SUMMARIZER ignored - no such file: /x (using the default summariser; unset it or fix the path)\n' > "$ST/.brief-summarizer-warn"
 ssout=$(printf '{}' | bash "$HOOKS/session-start-hook.sh")
 is "warn in systemMessage" "$(printf '%s\n' "$ssout" | grep -c 'BRIEF_SUMMARIZER ignored')" 1
 rm -f "$ST/.brief-summarizer-warn"

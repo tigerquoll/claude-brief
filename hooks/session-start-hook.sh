@@ -53,8 +53,11 @@ fi
 # (override fixed or unset). Sanitised for the JSON interpolation below.
 sum_warnf="$state/.brief-summarizer-warn"
 if [ -f "$sum_warnf" ]; then
+  # Byte-truncate, then keep printable ASCII only (a BRIEF_SUMMARIZER path could
+  # carry multibyte chars; a mid-rune cut would corrupt the JSON below), then
+  # drop the two JSON-breaking chars.
   # shellcheck disable=SC1003  # tr deletes double-quote + backslash; not an escape attempt
-  warn=$(head -c 250 "$sum_warnf" | tr -d '"\\' | tr '\n' ' ')
+  warn=$(head -c 250 "$sum_warnf" | LC_ALL=C tr -cd ' -~' | tr -d '"\\')
   [ -n "$warn" ] && msg="${msg:+$msg; }${warn% }"
 fi
 [ -n "$msg" ] && printf '{"systemMessage":"%s"}\n' "$msg"
