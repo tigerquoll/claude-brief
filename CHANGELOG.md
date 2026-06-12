@@ -17,6 +17,10 @@ dates.
 - `latest release:` line in the debug `[install]` section — an anonymous,
   fail-soft (5s) check against the GitHub releases API, so stale-version bug
   reports identify themselves. Disclosed in PRIVACY.md.
+- Manual-install docs now list the optional `SessionStart` hook line — it's what
+  surfaces missing-dep and rejected-`BRIEF_SUMMARIZER` warnings at session start;
+  the plugin wires it automatically, but manual installs previously had those
+  warnings written to state and never shown.
 
 ## [1.5.0] — 2026-06-12
 

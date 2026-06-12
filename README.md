@@ -254,7 +254,13 @@ committed, to avoid leaking config):
 UserPromptSubmit -> bash "$HOME/.claude/hooks/task-prompt-hook.sh"
 Stop             -> bash "$HOME/.claude/hooks/task-summary-hook.sh"
 SessionEnd       -> bash "$HOME/.claude/hooks/session-end-hook.sh"
+SessionStart     -> bash "$HOME/.claude/hooks/session-start-hook.sh"   (optional, recommended)
 ```
+The `SessionStart` line is what surfaces warnings at session start — missing
+dependencies, and a `BRIEF_SUMMARIZER` override that was rejected (and why). The
+plugin wires it automatically; without it on a manual install, those warnings are
+written to `~/.claude/state/` but never shown. (It's idempotent and cheap — it also
+re-checks the iTerm2 dock profile that `install.sh` set up.)
 
 Then run **`/brief`** in any session — on a manual install the command keeps its bare name
 (no `claude-brief:` plugin prefix), so there's no Tab-completion step.

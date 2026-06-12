@@ -3,8 +3,10 @@
 # (the iTerm2 dock profile), PLUS a dependency preflight — because `/plugin install`
 # runs no interactive dep-check the way `./install.sh` does, so without this a
 # missing dep just yields a silently-dead dock. Cheap + idempotent; safe to run
-# every session. Plugin-only: install.sh does this at install time and registers no
-# SessionStart hook. bash-3.2-safe (runs via env bash) and jq-free (jq may be the
+# every session. Wired automatically by the plugin (hooks.json); on a MANUAL
+# install it's an optional-but-recommended settings.json line (see README) —
+# without it, the warn files below are written but never surfaced.
+# bash-3.2-safe (runs via env bash) and jq-free (jq may be the
 # very thing that's missing, so the warning can't depend on it).
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin root (or ~/.claude when installed)
 state="$HOME/.claude/state"

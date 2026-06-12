@@ -48,10 +48,11 @@ jobs:
             "" \
             "Install into ~/.claude:" \
             "  ./install.sh        # dependency check, then copies into ~/.claude" \
-            "Then add three hooks to ~/.claude/settings.json:" \
+            "Then add these hooks to ~/.claude/settings.json:" \
             '  UserPromptSubmit -> bash "$HOME/.claude/hooks/task-prompt-hook.sh"' \
             '  Stop             -> bash "$HOME/.claude/hooks/task-summary-hook.sh"' \
             '  SessionEnd       -> bash "$HOME/.claude/hooks/session-end-hook.sh"' \
+            '  SessionStart     -> bash "$HOME/.claude/hooks/session-start-hook.sh"   (optional: surfaces dep/config warnings)' \
             "" \
             "Or install it as a Claude Code plugin (hooks auto-wire):" \
             "  /plugin marketplace add tigerquoll/claude-brief" \
