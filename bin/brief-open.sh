@@ -163,7 +163,7 @@ if [ "$mode" = debug ]; then
     f="$state_dir/$sid.brief.md"
     echo "brief.md:         $([ -f "$f" ] && echo "present ($(agef "$f"))" || echo absent)"
     f="$state_dir/$sid.brief.done"
-    echo "last outcome:     $([ -f "$f" ] && echo "$(cat "$f" | head -1 | cut -c1-20) ($(agef "$f"))" || echo "none recorded")"
+    echo "last outcome:     $([ -f "$f" ] && echo "$(head -1 "$f" | cut -c1-20) ($(agef "$f"))" || echo "none recorded")"
     f="$state_dir/$sid.brief.fail"
     if [ -f "$f" ]; then
       read -r fc ft _ < "$f" 2>/dev/null
