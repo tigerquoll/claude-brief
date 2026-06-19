@@ -11,6 +11,20 @@ that version into the tarball's `plugin.json` and commits the bump to `main` —
 bump commit always lands one commit *after* the tag. The dates below are the release
 dates.
 
+## [1.6.4] — 2026-06-19
+
+### Added
+- Update notice: on a version bump, the SessionStart hook shows a one-time message
+  with a `file://` link to the installed `CHANGELOG.md` — Claude Code has no built-in
+  plugin-changelog surface (no manifest field, the `/plugin` update flow shows none).
+  Silent on first install and when unchanged, so it appears exactly once per update —
+  starting with the update *after* this one (this update just records the baseline).
+
+### Changed
+- The release tarball now ships `CHANGELOG.md` (previously `export-ignore`d as
+  dev-only), so the update notice can link to it on tarball installs too, not just
+  the plugin-clone path.
+
 ## [1.6.3] — 2026-06-19
 
 ### Fixed

@@ -475,6 +475,25 @@ else
   printf '  \033[33mskip\033[0m brief.json profile sync (macOS-only)\n'
 fi
 
+echo "SESSION-START — one-time 'what's new' notice on version bump (file:// CHANGELOG link)"
+# The hook reads $ROOT/.claude-plugin/plugin.json ($ROOT=$H) + $ROOT/CHANGELOG.md;
+# the harness stages neither, so stage them.
+mkdir -p "$H/.claude-plugin"
+printf '{"name":"claude-brief","version":"9.9.9"}' > "$H/.claude-plugin/plugin.json"
+printf '# Changelog\n' > "$H/CHANGELOG.md"
+printf '9.9.8' > "$ST/.brief-version-seen"                            # an older recorded version
+vb=$(printf '{}' | bash "$HOOKS/session-start-hook.sh")
+is "bump -> notice shown"     "$(printf '%s' "$vb" | grep -c '9.9.8 -> 9.9.9')" 1
+is "notice has file:// link"  "$(printf '%s' "$vb" | grep -c 'file://.*CHANGELOG.md')" 1
+is "seen file -> current"     "$(cat "$ST/.brief-version-seen" 2>/dev/null)" 9.9.9
+vb=$(printf '{}' | bash "$HOOKS/session-start-hook.sh")               # now unchanged
+is "unchanged -> no notice"   "$(printf '%s' "$vb" | grep -c 'what changed')" 0
+rm -f "$ST/.brief-version-seen"                                       # simulate first-ever install
+vb=$(printf '{}' | bash "$HOOKS/session-start-hook.sh")
+is "first install -> silent"  "$(printf '%s' "$vb" | grep -c '9.9.9')" 0
+is "first install records ver" "$(cat "$ST/.brief-version-seen" 2>/dev/null)" 9.9.9
+rm -rf "$H/.claude-plugin" "$H/CHANGELOG.md" "$ST/.brief-version-seen"
+
 echo "CLI SUMMARISER — pins the session's effective endpoint via --settings"
 # Settings env OVERRIDES process env, so the inner claude must get an explicit
 # --settings pin: the inherited ANTHROPIC_BASE_URL, or the default endpoint when

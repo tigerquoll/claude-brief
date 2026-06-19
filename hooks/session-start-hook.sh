@@ -67,5 +67,33 @@ if [ -f "$sum_warnf" ]; then
   warn=$(head -c 250 "$sum_warnf" | LC_ALL=C tr -cd ' -~' | tr -d '"\\')
   [ -n "$warn" ] && msg="${msg:+$msg; }${warn% }"
 fi
+
+# --- one-time "what's new" notice on version bump -------------------------------
+# Claude Code has no built-in plugin-changelog surface (no plugin.json field, the
+# /plugin update flow shows none), so we do it ourselves: when the installed
+# version differs from the one we last greeted, point the user at the CHANGELOG via
+# a file:// URL. Silent on first install (no prior version) and when unchanged, so
+# it shows exactly once per update. jq-free version read (jq may be the missing dep).
+verf="$state/.brief-version-seen"
+cur=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT/.claude-plugin/plugin.json" 2>/dev/null | head -1)
+cur=$(printf '%s' "$cur" | LC_ALL=C tr -cd '0-9A-Za-z.+-')   # keep it a sane version token (JSON-safe)
+if [ -n "$cur" ]; then
+  prev=$(cat "$verf" 2>/dev/null)
+  case "$prev" in
+    ''|"$cur") : ;;   # first install (record silently) or unchanged -> no notice
+    *)
+      note="claude-brief updated $prev -> $cur"
+      chlog="$ROOT/CHANGELOG.md"
+      # file:// URL to the shipped CHANGELOG (absolute path -> file:///…); %20 spaces,
+      # and the path is plugin-owned ASCII, but strip the two JSON-breakers to be safe.
+      if [ -f "$chlog" ]; then
+        url=$(printf 'file://%s' "$chlog" | sed 's/ /%20/g' | LC_ALL=C tr -d '"\\')
+        note="$note — what changed: $url"
+      fi
+      msg="${msg:+$msg; }$note"
+      ;;
+  esac
+  printf '%s' "$cur" > "$verf" 2>/dev/null   # record (also seeds silently on first install)
+fi
 [ -n "$msg" ] && printf '{"systemMessage":"%s"}\n' "$msg"
 exit 0
