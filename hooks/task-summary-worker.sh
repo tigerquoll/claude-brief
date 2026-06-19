@@ -111,10 +111,10 @@ Be concrete — name files, tools, or components. Prefer specifics over generic 
 
 Then a line containing ONLY: ===BRIEF===
 
-PART 2 — a living session brief in GitHub markdown that re-briefs a developer who just tabbed back in. UPDATE the previous brief (given below) with what changed this turn; do NOT regenerate from scratch. Preserve durable knowledge; drop resolved or stale items from State and Next. Be concrete: name files, errors, commands, line numbers. Start with a `# <one-line goal>` title, then these sections in this order: ## State, ## Tried, ## Gotchas, ## Decisions, ## Next / Open. FOLLOW THE DISPLAY-SIZE DIRECTIVE in the user message — it says exactly which sections to include and how much detail; fitting the pane takes priority over completeness.
+PART 2 — a living session brief in GitHub markdown that re-briefs a developer who just tabbed back in. UPDATE the previous brief (given below) with what changed this turn; do NOT regenerate from scratch. Preserve durable knowledge; drop resolved or stale items from State and Next. Be concrete: name files, errors, commands, line numbers. Put each list item on ONE line — never insert a line break inside an item; the dock wraps text to the pane width itself, so a manual break renders mis-wrapped. Start with a `# <one-line goal>` title, then these sections in this order: ## State, ## Tried, ## Gotchas, ## Decisions, ## Next / Open. FOLLOW THE DISPLAY-SIZE DIRECTIVE in the user message — it says exactly which sections to include and how much detail; fitting the pane takes priority over completeness.
 If nothing material changed since the previous brief, output ONLY the word UNCHANGED after the marker.'
 
-usr="Display-size directive (the dock pane is ${rows} rows x ${cols} cols): ${budget_note} Keep lines under ~${cols} chars (longer lines wrap and cost extra display rows). Don't exceed ~${avail} display lines.
+usr="Display-size directive (the dock pane is ${rows} rows x ${cols} cols): ${budget_note} Write every bullet and line as a SINGLE line — do NOT hard-wrap or put line breaks inside an item. The dock soft-wraps text to the pane width itself; a manual line break is preserved verbatim, renders mis-wrapped, and will NOT reflow when the pane is resized. Keep bullets concise instead — a bullet that soft-wraps to N rows counts as N toward the budget. Don't exceed ~${avail} display lines.
 
 Session title hint: ${title:-none}
 

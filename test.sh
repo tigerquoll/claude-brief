@@ -57,6 +57,16 @@ wipe; BRIEF_SUMMARIZER="$BIN/t-ok.sh"   "$W" "$S" "$TP";              is "update
       BRIEF_SUMMARIZER="$BIN/t-unch.sh" "$W" "$S" "$TP";              is "unchanged" "$(cat "$ST/$S.brief.done")" unchanged
 wipe; BRIEF_SUMMARIZER="$BIN/t-fail.sh" "$W" "$S" "$TP";              is "error"     "$(cat "$ST/$S.brief.done")" error
 
+echo "WORKER — prompt tells the summariser NOT to hard-wrap (glow keeps soft breaks)"
+# The summariser must write one line per bullet; manual line breaks are preserved by
+# glow and render mis-wrapped / can't reflow. Capture the built prompt via a stub.
+mkfake t-capture.sh $'#!/usr/bin/env bash\nprintf "%s" "$BRIEF_USR" > "$HOME/.claude/state/cap.usr"\nprintf "%s" "$BRIEF_SYS" > "$HOME/.claude/state/cap.sys"\nprintf "goal: g\\nnow: n\\n===BRIEF===\\n# T\\n## State\\n- s\\n"\n'
+wipe; BRIEF_SUMMARIZER="$BIN/t-capture.sh" "$W" "$S" "$TP" >/dev/null 2>&1
+is "usr: single-line directive" "$(grep -c 'SINGLE line' "$ST/cap.usr" 2>/dev/null)" 1
+is "usr: no old hard-wrap rule" "$(grep -c 'Keep lines under' "$ST/cap.usr" 2>/dev/null)" 0
+is "sys: one-line-per-item rule" "$(grep -c 'each list item on ONE line' "$ST/cap.sys" 2>/dev/null)" 1
+rm -f "$ST/cap.usr" "$ST/cap.sys"; wipe
+
 echo "WORKER — last-good label kept on failure"
 wipe; BRIEF_SUMMARIZER="$BIN/t-ok.sh"   "$W" "$S" "$TP" >/dev/null
       BRIEF_SUMMARIZER="$BIN/t-fail.sh" "$W" "$S" "$TP"

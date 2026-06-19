@@ -11,6 +11,17 @@ that version into the tarball's `plugin.json` and commits the bump to `main` —
 bump commit always lands one commit *after* the tag. The dates below are the release
 dates.
 
+## [1.6.5] — 2026-06-19
+
+### Fixed
+- Brief no longer renders "hard-wrapped" at a fixed width that ignores the pane (so
+  it wouldn't reflow when you resized). The summariser prompt told the model to keep
+  lines under the pane width, which baked manual line breaks into the markdown — and
+  glow preserves soft (single-newline) breaks instead of reflowing them, so those
+  briefs stayed wrapped at the summariser's width regardless of the pane. The prompt
+  now tells the model to write each bullet on ONE line and let the dock wrap.
+  Existing briefs fix themselves on their next refresh.
+
 ## [1.6.4] — 2026-06-19
 
 ### Added
