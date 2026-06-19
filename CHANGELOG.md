@@ -11,6 +11,25 @@ that version into the tarball's `plugin.json` and commits the bump to `main` —
 bump commit always lands one commit *after* the tag. The dates below are the release
 dates.
 
+## [1.6.2] — 2026-06-19
+
+### Fixed
+- The dock no longer looks frozen at the old width when you resize the pane. The
+  viewer renders on the alt-screen and clears with `\033[2J`, but some terminals
+  (notably iTerm2 with default settings) copy each alt-screen clear into the
+  scrollback — so renders at different widths piled up there, and on a resize the
+  terminal reflowed that stale scrollback back into view, looking exactly like the
+  brief never re-wrapped (the *newest* render was always correct). The full redraw
+  now also erases the scrollback (`\033[3J`), so the dock shows only the current
+  render. A `WINCH` trap also makes a resize redraw immediately instead of waiting
+  up to the ~0.5s poll.
+- When the dock was open for a session with no brief yet (fresh / just-cleared
+  session, or every turn so far trivial), it showed a bare "No brief yet" screen
+  with **no footer/menu** — so `r` (refresh now) and the `i`/interval refresh gave
+  no feedback and looked dead. The no-brief screen now carries the same menu footer
+  and live refresh state (spinner + outcome), so a manual or interval refresh can
+  be triggered and its progress is visible.
+
 ## [1.6.1] — 2026-06-15
 
 ### Fixed

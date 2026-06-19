@@ -943,7 +943,9 @@ if [ -z "${CI:-}" ] && command -v tmux >/dev/null 2>&1; then   # real-pane e2e: 
   tmx new-session -d -s s -x 200 -y 50 2>/dev/null
   if tmx list-panes -t s >/dev/null 2>&1; then
     wipe
-    printf '# tmux e2e\n\n## State\nrendering inside a real split\n\n## Next / Open\n- close cleanly\n' > "$ST/$S.brief.md"
+    # Open the dock with NO brief on disk yet, so we exercise the no-brief screen
+    # FIRST (regression: it used to be a dead screen with no menu, so r/interval
+    # couldn't be triggered), THEN write the brief and assert the viewer transitions.
     mp=$(tmx list-panes -t s -F '#{pane_id}' | head -1)
     mkdir -p "$ST/panes"; printf '%s\n' "$S" > "$ST/panes/$mp"   # $TMUX_PANE inside the pane == $mp -> resolves to $S
     tmx send-keys -t "$mp" "'$BIN/brief-open.sh' dock >/tmp/t-tmux 2>&1" Enter
@@ -951,13 +953,18 @@ if [ -z "${CI:-}" ] && command -v tmux >/dev/null 2>&1; then   # real-pane e2e: 
     while [ "$i" -lt 15 ]; do napf; dock=$(tmx list-panes -t s -F '#{pane_id} #{pane_active}' 2>/dev/null | awk '$2==0{print $1}' | head -1); [ -n "$dock" ] && break; i=$((i+1)); done
     is "tmux dock pane created"     "$([ -n "$dock" ] && echo yes || echo no)" yes
     is "session file = tmux <pane>" "$(cat "$ST/$S.brief.session" 2>/dev/null)" "tmux $dock"
-    render=""; i=0
-    while [ "$i" -lt 15 ]; do napf; render=$(tmx capture-pane -p -t "$dock" 2>/dev/null); printf '%s' "$render" | grep -q 'tmux e2e' && break; i=$((i+1)); done
+    # No brief yet -> the dock must still show the menu footer (auto/interval/?).
+    nb=""; i=0
+    while [ "$i" -lt 15 ]; do napf; nb=$(tmx capture-pane -p -t "$dock" 2>/dev/null); printf '%s' "$nb" | grep -q 'no brief yet' && break; i=$((i+1)); done
     # The viewer needs bash 5; if the dock pane's `env bash` is older (a sandbox/CI PATH with
     # no Homebrew bash), it prints the bash-5 notice instead of rendering — skip, don't fail.
-    if printf '%s' "$render" | grep -q 'needs bash >= 5'; then
+    if printf '%s' "$nb" | grep -q 'needs bash >= 5'; then
       printf '  \033[33mskip\033[0m dock pane shell is bash <5 (no bash 5 on its PATH) — viewer render not exercised\n'
     else
+      is "no-brief shows the menu"    "$(printf '%s' "$nb" | grep -qE 'no brief yet.*auto on.*interval off' && echo yes || echo no)" yes
+      printf '# tmux e2e\n\n## State\nrendering inside a real split\n\n## Next / Open\n- close cleanly\n' > "$ST/$S.brief.md"
+      render=""; i=0
+      while [ "$i" -lt 15 ]; do napf; render=$(tmx capture-pane -p -t "$dock" 2>/dev/null); printf '%s' "$render" | grep -q 'tmux e2e' && break; i=$((i+1)); done
       is "viewer rendered the brief"  "$([ "$(printf '%s' "$render" | grep -c 'tmux e2e')" -ge 1 ] && echo yes || echo no)" yes
       is "viewer footer (bash5+glow)" "$([ "$(printf '%s' "$render" | grep -c generated)" -ge 1 ] && echo yes || echo no)" yes
     fi

@@ -36,9 +36,24 @@ echo $$ > "$pidf"
 
 cleanup() { tput rmcup 2>/dev/null; tput cnorm 2>/dev/null; rm -f "$pidf" "$marker"; exit 0; }
 trap cleanup INT TERM EXIT
+# Resize must redraw PROMPTLY. The loop polls stty every ~0.5s, but a WINCH trap
+# makes the in-flight `read` return immediately so the new size is picked up at
+# once (no half-second of stale wrap). The no-op handler is enough — it just
+# interrupts the read; the loop's own stty poll then sees the new size.
+trap ':' WINCH
 tput smcup 2>/dev/null   # enter alternate screen (no scrollback => no scroll bar)
 tput civis 2>/dev/null   # hide cursor for a clean dashboard look
 unset COLUMNS LINES      # else tput honors a stale inherited COLUMNS and never sees resizes
+
+# Full-screen clear that ALSO erases the scrollback (\033[3J). The dock is a fixed
+# dashboard (smcup alt-screen, no scrolling), but some terminals — notably iTerm2
+# with its default settings — copy each alt-screen \033[2J clear into the scrollback,
+# so successive renders at DIFFERENT pane widths pile up there. On a resize the
+# terminal reflows that stale scrollback back into view, which looks exactly like
+# "the brief never re-wrapped" even though the newest render is correct. Wiping the
+# scrollback every redraw keeps the dock to exactly the current render; it's a
+# harmless no-op on terminals that properly isolate the alt screen (nothing to erase).
+clear_screen() { { tput clear 2>/dev/null || printf '\033[H\033[2J'; }; printf '\033[3J'; }
 
 # Post-process glow output into indent levels: headings at col 2, bullets nested
 # at col 4, wrapped continuations deeper (col 8 under a bullet, col 4 under a
@@ -130,7 +145,7 @@ begin_refresh() {
 # Reprint ONLY the footer line in place (no glow, no full redraw). Safe to call
 # any time after the first render has set $footer_row/$gen_epoch.
 repaint_footer() {
-  [ -n "$gen_epoch" ] || return 0
+  [ -n "$footer_row" ] || return 0   # set by the first render (brief OR no-brief screen)
   tput cup "$footer_row" 0 2>/dev/null; footer; tput el 2>/dev/null
   last_rtail="$rtail"; last_spin="$spinframe"
 }
@@ -141,6 +156,18 @@ repaint_footer() {
 # age reads "previously generated <age>" since the shown content is the prior gen.
 # Builds the body with printf -v (no subshell) since this can repaint every tick.
 footer() {
+  # No brief on disk yet: the footer is just the menu hint (+ any transient tail
+  # or in-flight spinner), so the dock still shows the controls and refresh
+  # feedback instead of a dead screen. gen_epoch is unset until the first brief
+  # renders, which is also the flag the loop uses for "no brief yet".
+  if [ -z "$gen_epoch" ]; then
+    if [ -n "$spinframe" ]; then
+      printf '\033[2m%s generating first brief…%s\033[0m' "$spinframe" "$rtail"
+    else
+      printf '\033[2m— no brief yet%s\033[0m' "$rtail"
+    fi
+    return
+  fi
   local body u=updates
   [ "$sk" -eq 1 ] && u=update
   if [ "$sk" -gt 0 ]; then
@@ -205,6 +232,46 @@ step_interval() {
   rtail=" · interval ${intv_label}"; [ "$intv" = 0 ] && rtail="${rtail} (off)"
   rtail_until=$(( EPOCHSECONDS + MSG_SECS )); repaint_footer
 }
+# Advance the in-flight spinner and reconcile a completed refresh: surface the
+# worker's done-stamp OUTCOME (timeout/error/unchanged), trip the viewer-side
+# timeout, and expire a transient message back to the hint. Shared by the brief
+# and no-brief footer ticks so r/interval feedback works in BOTH states. Sets
+# $refreshing/$spinframe/$rtail/$rtail_until; the caller repaints if they changed.
+update_refresh_state() {
+  [ "$refreshing" = 1 ] && { spin=$(( (spin + 1) % ${#SPIN[@]} )); spinframe=${SPIN[spin]}; }   # animate the in-flight spinner
+  # Done-stamp watcher: the worker writes an OUTCOME word there at the end of
+  # every attempt — ours (r/interval) or the auto end-of-turn one — so a
+  # failure surfaces instead of masquerading as "no change". 'updated' means
+  # the brief changed and the redraw already showed it; 'no change' is only
+  # worth announcing when WE asked for the refresh.
+  dm=$(_mtime "$donef")
+  if [ "$dm" != "$done_mt" ]; then
+    done_mt=$dm; was_ours=$refreshing; refreshing=0; spinframe=""; last_intv=$EPOCHSECONDS   # any completed refresh (incl. UNCHANGED) resets the interval timer
+    oc=$(cat "$donef" 2>/dev/null)
+    case "$oc" in
+      timeout|error)
+        rtail=' · ⚠ summary timed out'; [ "$oc" = error ] && rtail=' · ⚠ summary failed'
+        # Backoff visibility: after MAXFAIL consecutive failures the worker
+        # pauses retries for COOLDOWN (3 / 600s — MIRROR of task-summary-worker.sh);
+        # without this line the pause reads as the brief silently dying.
+        if read -r _fc _ft _ < "$state_dir/$sid.brief.fail" 2>/dev/null; then
+          case "$_fc" in ''|*[!0-9]*) _fc=0 ;; esac; case "$_ft" in ''|*[!0-9]*) _ft=0 ;; esac
+          _left=$(( 600 - (EPOCHSECONDS - _ft) ))
+          if [ "$_fc" -ge 3 ] && [ "$_left" -gt 0 ]; then
+            rtail=" · ⚠ summary failing — auto-retry in ~$(( (_left + 59) / 60 ))m"
+          fi
+        fi
+        rtail_until=$(( EPOCHSECONDS + MSG_SECS ))
+        ;;
+      unchanged) [ "$was_ours" = 1 ] && { rtail=' · ✓ no change'; rtail_until=$(( EPOCHSECONDS + MSG_SECS )); } ;;
+      *)         : ;;   # updated/unknown -> the content redraw speaks for itself
+    esac
+  elif [ "$refreshing" = 1 ] && [ "$(( EPOCHSECONDS - refresh_start ))" -gt "$REFRESH_TIMEOUT" ]; then
+    refreshing=0; spinframe=""; rtail=' · ⚠ no response'; rtail_until=$(( EPOCHSECONDS + MSG_SECS ))   # worker never reported back
+  elif [ "$rtail_until" -gt 0 ] && [ "$EPOCHSECONDS" -ge "$rtail_until" ]; then
+    rtail="$HINT"; rtail_until=0                 # transient message expired -> back to hint
+  fi
+}
 set_hint; rtail="$HINT"; last_rtail=""
 # Timing below uses $EPOCHSECONDS (the reason for the bash-5 requirement), NOT
 # $(date +%s): it's a dynamic var returning time(0) in-process (vDSO/commpage
@@ -238,7 +305,7 @@ while :; do
       # state) visible. The summariser sizes the brief to the pane (see $sizef), so
       # overflow is rare — "+N below" is just a backstop. No scrollback on alt screen.
       maxrows=$(( rows - 2 )); [ "$maxrows" -lt 3 ] && maxrows=3
-      { tput clear 2>/dev/null || printf '\033[H\033[2J'; }
+      clear_screen
       out=$(render 2>/dev/null)
       total=$(printf '%s\n' "$out" | wc -l | tr -d ' ')
       printf '%s\n' "$out" | head -n "$maxrows"
@@ -256,39 +323,7 @@ while :; do
       # No content change. Tick the relative age, reconcile in-flight refresh
       # state, and reprint ONLY the footer line when something changed. No glow.
       agebucket $(( EPOCHSECONDS - gen_epoch ))
-      [ "$refreshing" = 1 ] && { spin=$(( (spin + 1) % ${#SPIN[@]} )); spinframe=${SPIN[spin]}; }   # animate the in-flight spinner
-      # Done-stamp watcher: the worker writes an OUTCOME word there at the end of
-      # every attempt — ours (r/interval) or the auto end-of-turn one — so a
-      # failure surfaces instead of masquerading as "no change". 'updated' means
-      # the brief changed and the redraw above already showed it; 'no change' is
-      # only worth announcing when WE asked for the refresh.
-      dm=$(_mtime "$donef")
-      if [ "$dm" != "$done_mt" ]; then
-        done_mt=$dm; was_ours=$refreshing; refreshing=0; spinframe=""; last_intv=$EPOCHSECONDS   # any completed refresh (incl. UNCHANGED) resets the interval timer
-        oc=$(cat "$donef" 2>/dev/null)
-        case "$oc" in
-          timeout|error)
-            rtail=' · ⚠ summary timed out'; [ "$oc" = error ] && rtail=' · ⚠ summary failed'
-            # Backoff visibility: after MAXFAIL consecutive failures the worker
-            # pauses retries for COOLDOWN (3 / 600s — MIRROR of task-summary-worker.sh);
-            # without this line the pause reads as the brief silently dying.
-            if read -r _fc _ft _ < "$state_dir/$sid.brief.fail" 2>/dev/null; then
-              case "$_fc" in ''|*[!0-9]*) _fc=0 ;; esac; case "$_ft" in ''|*[!0-9]*) _ft=0 ;; esac
-              _left=$(( 600 - (EPOCHSECONDS - _ft) ))
-              if [ "$_fc" -ge 3 ] && [ "$_left" -gt 0 ]; then
-                rtail=" · ⚠ summary failing — auto-retry in ~$(( (_left + 59) / 60 ))m"
-              fi
-            fi
-            rtail_until=$(( EPOCHSECONDS + MSG_SECS ))
-            ;;
-          unchanged) [ "$was_ours" = 1 ] && { rtail=' · ✓ no change'; rtail_until=$(( EPOCHSECONDS + MSG_SECS )); } ;;
-          *)         : ;;   # updated/unknown -> the content redraw speaks for itself
-        esac
-      elif [ "$refreshing" = 1 ] && [ "$(( EPOCHSECONDS - refresh_start ))" -gt "$REFRESH_TIMEOUT" ]; then
-        refreshing=0; spinframe=""; rtail=' · ⚠ no response'; rtail_until=$(( EPOCHSECONDS + MSG_SECS ))   # worker never reported back
-      elif [ "$rtail_until" -gt 0 ] && [ "$EPOCHSECONDS" -ge "$rtail_until" ]; then
-        rtail="$HINT"; rtail_until=0                 # transient message expired -> back to hint
-      fi
+      update_refresh_state
       if [[ "$skipf" -nt "$marker" ]]; then          # skip count is a FOOTER field -> reprint footer, NOT a full md re-render
         sk=$(cat "$skipf" 2>/dev/null); case "$sk" in ''|*[!0-9]*) sk=0 ;; esac
         : > "$marker"                                # mark skipf seen (fork-free) so it won't re-fire
@@ -298,9 +333,26 @@ while :; do
         repaint_footer; last_age="$AGE"   # repaint_footer also sets last_rtail/last_spin
       fi
     fi
-  elif [ "$redraw" = 1 ]; then
-    { tput clear 2>/dev/null || printf '\033[H\033[2J'; }
-    printf 'No brief yet for %s.\nIt appears after the next completed turn.' "${sid:0:8}"
+  else
+    # No brief on disk yet (fresh / just-cleared session, or every turn so far was
+    # trivial / UNCHANGED). Keep $gen_epoch empty so footer() shows "no brief yet"
+    # + the menu hint, and still tick the refresh state — so r / interval and their
+    # progress/outcome work HERE too, instead of a dead screen with no controls.
+    gen_epoch=""
+    if [ "$redraw" = 1 ]; then
+      clear_screen
+      printf 'No brief yet for %s.\n' "${sid:0:8}"
+      printf 'It appears after the first completed turn — or press r to make one now.\n'
+      footer_row=3                                   # 2 message lines + 1 blank, then the footer
+      printf '\n'; footer; last_rtail="$rtail"; last_spin="$spinframe"
+    elif [ -n "$footer_row" ]; then
+      # No content to redraw, but keep the footer alive: animate an in-flight
+      # refresh, surface its outcome, and expire transient messages back to the hint.
+      update_refresh_state
+      if [ "$rtail" != "$last_rtail" ] || [ "$spinframe" != "$last_spin" ]; then
+        repaint_footer
+      fi
+    fi
   fi
   # Interval refresh: while ON, re-run the summarizer every $intv_int seconds —
   # but only if the transcript advanced since the last attempt (fork-free -nt
