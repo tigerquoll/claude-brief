@@ -11,6 +11,23 @@ that version into the tarball's `plugin.json` and commits the bump to `main` —
 bump commit always lands one commit *after* the tag. The dates below are the release
 dates.
 
+## [1.6.3] — 2026-06-19
+
+### Fixed
+- The iTerm2 dock no longer shows a scroll bar. 1.6.2 stopped *renders* piling up
+  via `\033[3J`, but iTerm2 doesn't act on that erase-scrollback escape here, and
+  the alternate screen doesn't zero the pane's underlying main-buffer scrollback —
+  so the login noise printed before the viewer started (plus accumulating renders)
+  kept a scroll bar, and resizing could reflow that stale history into view. The
+  `brief` dock profile now sets `Scrollback Lines: 0`, giving the pane no scrollback
+  buffer at all — nothing to accumulate, nothing for the scroll bar to show. The
+  viewer also wipes the screen + scrollback once at startup (before `smcup`) for
+  backends that honor it.
+- The session-start hook now **resyncs** `brief.json` into iTerm2's DynamicProfiles
+  when the shipped copy differs, not only when it's missing — otherwise shipped
+  profile fixes (like the one above) never reach users who already have an older
+  profile.
+
 ## [1.6.2] — 2026-06-19
 
 ### Fixed

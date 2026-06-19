@@ -455,6 +455,26 @@ rm -f "$ST/.brief-summarizer-warn"
 ssout=$(printf '{}' | bash "$HOOKS/session-start-hook.sh")
 is "no warn file -> quiet" "$(printf '%s\n' "$ssout" | grep -c 'BRIEF_SUMMARIZER')" 0
 
+echo "SESSION-START — syncs the iTerm2 brief profile when the shipped copy differs"
+# Regression: the hook used to copy brief.json only when MISSING, so a shipped
+# profile fix (e.g. Scrollback Lines: 0) never reached users who already had an
+# older one. It must now also overwrite a STALE installed copy. macOS-only (the
+# hook gates on Darwin + the iTerm2 support dir).
+if [ "$(uname -s)" = Darwin ]; then
+  # The hook reads the shipped profile from $ROOT/iterm2/... ($ROOT=$H here) and
+  # writes to $HOME/Library/...; the harness stages bin/hooks but not iterm2/, so
+  # stage the shipped copy too, then plant a STALE installed copy.
+  mkdir -p "$H/iterm2/DynamicProfiles"
+  cp "$ROOT/iterm2/DynamicProfiles/brief.json" "$H/iterm2/DynamicProfiles/brief.json"
+  itd="$HOME/Library/Application Support/iTerm2/DynamicProfiles"; mkdir -p "$itd"
+  printf '{"Profiles":[{"Name":"brief","STALE":true}]}' > "$itd/brief.json"
+  printf '{}' | bash "$HOOKS/session-start-hook.sh" >/dev/null 2>&1
+  is "stale brief.json resynced" "$(cmp -s "$H/iterm2/DynamicProfiles/brief.json" "$itd/brief.json" && echo synced || echo stale)" synced
+  rm -rf "$HOME/Library/Application Support/iTerm2" "$H/iterm2"
+else
+  printf '  \033[33mskip\033[0m brief.json profile sync (macOS-only)\n'
+fi
+
 echo "CLI SUMMARISER — pins the session's effective endpoint via --settings"
 # Settings env OVERRIDES process env, so the inner claude must get an explicit
 # --settings pin: the inherited ANTHROPIC_BASE_URL, or the default endpoint when

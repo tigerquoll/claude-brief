@@ -41,6 +41,13 @@ trap cleanup INT TERM EXIT
 # once (no half-second of stale wrap). The no-op handler is enough — it just
 # interrupts the read; the loop's own stty poll then sees the new size.
 trap ':' WINCH
+# The dock pane's shell often prints login noise (prompt, ssh-add, …) before it
+# `exec`s the viewer; that lands in the MAIN screen's scrollback, and iTerm2 keeps
+# a scroll bar for it even after we switch to the alt screen — so a "no scrollback"
+# dashboard still shows a scroll bar. Wipe the screen + scrollback ONCE here while
+# still on the main screen (\033[3J only reaches the CURRENT screen's saved lines,
+# so it has to run BEFORE smcup), leaving the dock with no scrollback / no scroll bar.
+printf '\033[H\033[2J\033[3J'
 tput smcup 2>/dev/null   # enter alternate screen (no scrollback => no scroll bar)
 tput civis 2>/dev/null   # hide cursor for a clean dashboard look
 unset COLUMNS LINES      # else tput honors a stale inherited COLUMNS and never sees resizes

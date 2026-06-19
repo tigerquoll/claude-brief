@@ -5,7 +5,9 @@
       "Guid": "brief-dock-profile",
       "Dynamic Profile Parent Name": "Default",
       "Vertical Spacing": 1.2,
-      "Horizontal Spacing": 1.0
+      "Horizontal Spacing": 1.0,
+      "Scrollback Lines": 0,
+      "Unlimited Scrollback": false
     }
   ]
 }

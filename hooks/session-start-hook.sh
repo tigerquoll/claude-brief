@@ -12,13 +12,18 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")/.." && pwd)"   # plugin roo
 state="$HOME/.claude/state"
 mkdir -p "$state" 2>/dev/null
 
-# --- one-time: iTerm2 dock profile (your Default + 1.2x line spacing) -----------
-# Copy if on macOS with iTerm2 and not already present. Idempotent; iTerm2 auto-loads it.
+# --- iTerm2 dock profile (your Default + 1.2x line spacing, zero scrollback) -----
+# Sync if MISSING or STALE (content differs) — NOT just-if-missing: otherwise a
+# shipped fix to the profile (e.g. "Scrollback Lines": 0, which removes the dock's
+# scroll bar — the alt screen doesn't zero the pane's main-buffer scrollback) never
+# reaches users who already have an older brief.json. It's plugin-managed config
+# (users customize the Default profile it inherits, not this file); iTerm2 auto-
+# loads it, and cmp avoids needless writes/reloads. Idempotent; safe every session.
 if [ "$(uname -s)" = Darwin ] && [ -f "$ROOT/iterm2/DynamicProfiles/brief.json" ]; then
   itd="$HOME/Library/Application Support/iTerm2"
-  if [ -d "$itd" ] && [ ! -f "$itd/DynamicProfiles/brief.json" ]; then
-    mkdir -p "$itd/DynamicProfiles" 2>/dev/null \
-      && cp "$ROOT/iterm2/DynamicProfiles/brief.json" "$itd/DynamicProfiles/" 2>/dev/null
+  src="$ROOT/iterm2/DynamicProfiles/brief.json"; dst="$itd/DynamicProfiles/brief.json"
+  if [ -d "$itd" ] && { [ ! -f "$dst" ] || ! cmp -s "$src" "$dst"; }; then
+    mkdir -p "$itd/DynamicProfiles" 2>/dev/null && cp "$src" "$dst" 2>/dev/null
   fi
 fi
 
