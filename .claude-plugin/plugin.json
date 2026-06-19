@@ -1,7 +1,7 @@
 {
   "name": "claude-brief",
   "description": "A live, auto-refreshing per-session summary brief docked beside your Claude Code terminal — to quickly get up to speed when switching between parallel sessions.",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "author": {
     "name": "Dale",
     "email": "tigerquoll@outlook.com"
