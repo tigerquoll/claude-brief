@@ -11,6 +11,16 @@ that version into the tarball's `plugin.json` and commits the bump to `main` —
 bump commit always lands one commit *after* the tag. The dates below are the release
 dates.
 
+## [1.6.6] — 2026-06-26
+
+### Fixed
+- The SessionStart dependency preflight now also checks for `perl`. The summariser
+  worker bounds each `claude -p` call with a `perl` watchdog (`alarm`/`exec`), but the
+  preflight only warned about a missing `jq`, `bash 5`, or terminal — so on a minimal
+  Linux box without `perl` (it's a macOS built-in, so this never bites on macOS) the
+  brief would silently fail to generate with no actionable message. `perl` now appears
+  in the same "required dep(s) missing" warning as the others.
+
 ## [1.6.5] — 2026-06-19
 
 ### Fixed

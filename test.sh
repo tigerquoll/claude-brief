@@ -465,6 +465,18 @@ rm -f "$ST/.brief-summarizer-warn"
 ssout=$(printf '{}' | bash "$HOOKS/session-start-hook.sh")
 is "no warn file -> quiet" "$(printf '%s\n' "$ssout" | grep -c 'BRIEF_SUMMARIZER')" 0
 
+echo "SESSION-START — preflight names perl when missing from PATH"
+# Build a shim dir containing only the tools the hook needs that are NOT perl/jq/glow,
+# so command -v perl (and jq) fails and the preflight fires. We assert the emitted
+# systemMessage contains the token 'perl'.
+pf_shim=$(mktemp -d "${TMPDIR:-/tmp}/t-pf-shim.XXXXXX")
+for _t in uname mkdir cmp cp bash sed cat head tr dirname; do
+  ln -s "$(command -v "$_t")" "$pf_shim/$_t" 2>/dev/null || :
+done
+pf_out=$(printf '{}' | PATH="$pf_shim" bash "$HOOKS/session-start-hook.sh" 2>/dev/null)
+is "preflight names perl when missing" "$(printf '%s' "$pf_out" | grep -o 'perl' | head -1)" "perl"
+rm -rf "$pf_shim"
+
 echo "SESSION-START — syncs the iTerm2 brief profile when the shipped copy differs"
 # Regression: the hook used to copy brief.json only when MISSING, so a shipped
 # profile fix (e.g. Scrollback Lines: 0) never reached users who already had an

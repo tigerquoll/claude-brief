@@ -32,6 +32,7 @@ fi
 # notice is too easy to miss); the OPTIONAL glow note fires once so it never nags.
 req=""; brew=""
 command -v jq >/dev/null 2>&1 || { req="${req}jq, "; brew="${brew}jq "; }   # every hook parses the transcript with jq
+command -v perl >/dev/null 2>&1 || { req="${req}perl, "; brew="${brew}perl "; }   # worker's summariser watchdog (alarm/exec) is perl; macOS built-in, but a minimal Linux may lack it
 bv=$(bash -c 'echo "${BASH_VERSINFO[0]:-0}"' 2>/dev/null)                    # dock viewer needs $EPOCHSECONDS (bash 5+; macOS ships 3.2)
 [ "${bv:-0}" -ge 5 ] || { req="${req}bash 5, "; brew="${brew}bash "; }
 if ! command -v osascript >/dev/null 2>&1 && ! command -v tmux >/dev/null 2>&1 \
