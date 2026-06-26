@@ -627,6 +627,58 @@ is "snap 420->300"  "$(snap 420)" 300
 is "snap 700->600"  "$(snap 700)" 600
 is "snap 5000->3600" "$(snap 5000)" 3600
 
+echo "VIEWER — _ifmt wraps at spaces (no mid-token hyphen split, no trailing pad)"
+# Exercises the REAL _ifmt from the staged brief-view.sh (not a mirror copy).
+# Extract the function with awk (naive sed fails — the inline perl has column-0 }
+# lines that close its subs; awk stops only at the outer bash closing brace).
+# Pipeline: CLICOLOR_FORCE=1 glow -w 0 <fixture> </dev/null | _ifmt <W>
+# Fixture: a long bullet with DEX-22116 + a long body line that must wrap.
+if command -v glow >/dev/null 2>&1; then
+  IFMT_FIX=$(mktemp "${TMPDIR:-/tmp}/t-ifmt.XXXXXX.md")
+  printf '%s\n' \
+    '# T' '' \
+    '## State' \
+    '- DEX-22116 is resolved; DEX-21384 DEX-21548 DEX-22029 DEX-22105 DEX-22124 DEX-22125 DEX-21976 are all merged and ready for close in the develop branch target' \
+    '' \
+    'Long body line: alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt' \
+    > "$IFMT_FIX"
+
+  # Extract _ifmt from the staged brief-view.sh and load it into this shell.
+  # The awk pattern: collect from ^_ifmt() { until the outer ^}$ that follows
+  # the ' "$W"$ line (which marks the end of the perl -e string).
+  _extract_ifmt() { awk '
+    /^_ifmt\(\) \{/ {grab=1}
+    grab {print}
+    grab && done && /^\}$/ {exit}
+    /^'\'' "\$W"$/ {done=1}
+  ' "$1"; }
+  eval "$(_extract_ifmt "$BIN/brief-view.sh")"
+  # Localize a future extraction breakage (e.g. brief-view.sh reformatted so the
+  # awk terminator no longer matches) instead of failing obscurely downstream.
+  is "_ifmt extracted from brief-view.sh" "$(declare -F _ifmt >/dev/null && echo yes || echo no)" yes
+
+  for TW in 60 103; do
+    out=$(CLICOLOR_FORCE=1 glow -w 0 "$IFMT_FIX" </dev/null | _ifmt "$TW")
+    # (a) max display width <= W-1
+    maxw=$(printf '%s\n' "$out" | perl -e '
+use utf8; binmode(STDIN,":encoding(UTF-8)"); binmode(STDOUT,":encoding(UTF-8)");
+my $m=0; while(<STDIN>){ chomp; (my $s=$_)=~s/\e\[[0-9;]*m//g;
+  my $w=0; $w+=(/\p{East_Asian_Width=Wide}|\p{East_Asian_Width=Fullwidth}/?2:1) for split//,$s;
+  $m=$w if $w>$m; } print $m')
+    is "_ifmt W=$TW: max_width <= W-1" \
+       "$([ "$maxw" -le $(( TW - 1 )) ] && echo pass || echo "fail(${maxw}>$((TW-1)))")" pass
+    # (b) DEX-22116 appears intact on a single line (not split)
+    dex=$(printf '%s\n' "$out" | perl -ne 'print "yes" and exit if /DEX-22116/')
+    is "_ifmt W=$TW: DEX-22116 intact" "${dex:-no}" yes
+    # (c) no trailing whitespace
+    tws=$(printf '%s\n' "$out" | perl -ne 'END{ print $c+0 } $c++ if /[ \t]$/')
+    is "_ifmt W=$TW: no trailing whitespace" "$tws" 0
+  done
+  rm -f "$IFMT_FIX"
+else
+  printf '  \033[33mskip\033[0m _ifmt wrap test (glow not installed)\n'
+fi
+
 echo "PORTABLE — _mtime/_perm pick the right stat flavor (BSD vs GNU, stubbed)"
 # The core uses _mtime/_perm (bin/lib/portable.sh) instead of raw `stat`, so it runs
 # on Linux (GNU stat) as well as macOS (BSD stat). Stub each `stat` flavour on PATH

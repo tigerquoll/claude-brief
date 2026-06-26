@@ -11,6 +11,23 @@ that version into the tarball's `plugin.json` and commits the bump to `main` —
 bump commit always lands one commit *after* the tag. The dates below are the release
 dates.
 
+## [1.6.7] — 2026-06-26
+
+### Fixed
+- The dock no longer breaks identifiers at hyphens or runs lines past the pane edge.
+  glow's word-wrap broke after `-` (so `DEX-22116` rendered as `DEX-` / `22116`) and
+  right-padded every line to the wrap width, which — together with glow overshooting
+  its own `-w` — made long lines spill over and wrap raggedly. The viewer now runs
+  `glow -w 0` (no wrap, no padding, no hyphen-break) and wraps the brief itself at
+  spaces only, ANSI-aware: identifiers stay whole, there is no trailing padding, and
+  no rendered line exceeds the pane width.
+
+### Changed
+- Dock layout, with the wrapping fixed: section headers sit at the gutter, list items
+  indent beneath them (bullet glyph col 4, text col 6), and a wrapped item now hangs
+  two columns past its text so continuations read as part of the item. Nested and
+  numbered lists nest correctly; paragraph briefs keep body text at the gutter.
+
 ## [1.6.6] — 2026-06-26
 
 ### Fixed

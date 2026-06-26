@@ -62,36 +62,109 @@ unset COLUMNS LINES      # else tput honors a stale inherited COLUMNS and never 
 # harmless no-op on terminals that properly isolate the alt screen (nothing to erase).
 clear_screen() { { tput clear 2>/dev/null || printf '\033[H\033[2J'; }; printf '\033[3J'; }
 
-# Post-process glow output into indent levels: headings at col 2, bullets nested
-# at col 4, wrapped continuations deeper (col 8 under a bullet, col 4 under a
-# heading); plus a dimmed bullet glyph and blank-line runs collapsed to one.
-# Leading spaces don't disturb glow's embedded ANSI, so this is safe.
+# Post-process glow -w 0 output: wrap at spaces only (ANSI-aware display width,
+# no padding) within a 1-column safety margin. glow -w 0 emits each markdown
+# block as one long unpadded line, so _ifmt owns all wrapping. Accepts $1 = pane
+# width W. Layout mirrors the original nested look: headers/body at a 2-col gutter;
+# list items (dim "• " bullets and "N." numbers) indent UNDER their section header
+# (top level -> glyph col 4, text col 6), preserving glow's own nesting; and a
+# wrapped item HANGS 2 cols past its text (top level -> col 8) so continuations
+# read as part of the item rather than running back to the margin. Blank-line
+# runs collapse to one.
+# An SGR span (bold/colour) that straddles a wrap boundary is not re-asserted on
+# the continuation line: the open style carries over, which is correct for the
+# continued text and invisible because glow-brief.json uses foreground styling
+# only (no background). Re-assert per line if a bg is ever added.
 _ifmt() {
-  perl -CSDA -ne '
-    chomp;
-    if (/^\s*$/)                { print "\n" unless $pb; $pb=1; $ind=0; next }
-    $pb=0;
-    if (/^\x{2022} (.*)$/)      { $ind=8; print "    \e[90m\x{2022}\e[0m $1\n"; next }  # bullet @col4, cont @8
-    if (/^[\x{25b8}\x{258c}] /) { $ind=4; print "  $_\n"; next }                        # ▸/▌ heading @col2, cont @4
-    if (/^  \S/)                { $ind=4; print "  $_\n"; next }                         # h3
-    if ($ind)                   { print " " x $ind, "$_\n"; next }                       # wrapped continuation
-    print "  $_\n";
-  '
+  local W=${1:-80}
+  perl -e '
+use strict; use warnings;
+use utf8;
+binmode(STDIN,  ":encoding(UTF-8)");
+binmode(STDOUT, ":encoding(UTF-8)");
+my $W = shift @ARGV; $W = 80 unless $W && $W =~ /^\d+$/;
+$W = 8 if $W < 8;   # sane minimum
+
+sub dwidth {
+  my $s = shift;
+  $s =~ s/\e\[[0-9;]*m//g;
+  my $w = 0;
+  for my $c (split //, $s) {
+    $w += ($c =~ /\p{East_Asian_Width=Wide}|\p{East_Asian_Width=Fullwidth}/) ? 2 : 1;
+  }
+  return $w;
+}
+
+sub wrap_at_spaces {
+  my ($text, $width) = @_;
+  $width = 1 if $width < 1;
+  my @words = split / /, $text;
+  my @out; my $cur = ""; my $curw = 0;
+  for my $word (@words) {
+    my $ww = dwidth($word);
+    if ($cur eq "") { $cur = $word; $curw = $ww; next; }
+    if ($curw + 1 + $ww <= $width) { $cur .= " " . $word; $curw += 1 + $ww; }
+    else { push @out, $cur; $cur = $word; $curw = $ww; }
+  }
+  push @out, $cur if $cur ne "" || !@out;
+  return @out;
+}
+
+my $G = 2;   # base gutter: headers + body sit at col 2
+my $pb = 0;
+while (my $raw = <STDIN>) {
+  chomp $raw;
+  if ($raw =~ /^\s*$/) { print "\n" unless $pb; $pb = 1; next; }
+  $pb = 0;
+  $raw =~ s/[ \t]+$//;
+
+  # Split the leading structural indent glow emits (list nesting) from the content.
+  # Then detect a list marker so list items indent UNDER the section header and
+  # their wrapped continuations HANG beneath the item text (not back to the margin).
+  my ($lead, $rest) = $raw =~ /^( *)(.*)$/;
+  my $li = length $lead;
+
+  my ($text, $first_pre, $hang);
+  if ($rest =~ /^\x{2022}[ ]+(.*)$/) {                  # bullet -> dim "• " indented under header
+    $text      = $1;
+    my $col    = $G + $li + 2;                          # glyph col (top-level -> 4); text at col+2
+    $first_pre = (" " x $col) . "\e[90m\x{2022}\e[0m ";
+    $hang      = $col + 4;                              # continuations hang 2 PAST the text (-> col 8)
+  } elsif ($rest =~ /^(\d+[.)])[ ]+(.*)$/) {            # numbered list item (1. / 1))
+    my $num    = $1;
+    $text      = $2;
+    my $col    = $G + $li + 2;
+    $first_pre = (" " x $col) . "$num ";
+    $hang      = $col + (length $num) + 3;              # continuations hang 2 PAST the text
+  } else {                                              # header / body / prose -> gutter only
+    $text      = $rest;
+    $first_pre = " " x ($G + $li);
+    $hang      = $G + $li;
+  }
+  my $budget = ($W - 1) - $hang;
+  $budget = 8 if $budget < 8;
+  my @pieces = wrap_at_spaces($text, $budget);
+  my $first = 1;
+  for my $p (@pieces) {
+    if ($first) { print $first_pre, $p, "\n"; $first = 0; }
+    else        { print " " x $hang, $p, "\n"; }
+  }
+}
+' "$W"
 }
 
 render() {
-  local W wrapw gs
+  local W gs
   W=${cols:-80}                               # full pane width (cached $cols) — fills the pane, reflows on resize
-  wrapw=$(( W - 8 ))                          # room for the deepest indent (8-col continuation hang)
-  [ "$wrapw" -lt 20 ] && wrapw=20
   if command -v glow >/dev/null 2>&1; then
-    # glow word-wraps at wrapw (breaks at spaces -> identifiers stay whole); _ifmt
-    # adds the gutter/hang indent. render() re-runs on resize, so it reflows.
+    # glow -w 0 emits each block as one long unpadded line (no hyphen-break,
+    # no trailing padding); _ifmt "$W" does all wrapping at spaces with a
+    # 1-column safety margin. render() re-runs on resize, so it reflows.
     gs="$ROOT/glow-brief.json"
     # CLICOLOR_FORCE: glow strips color when its stdout is a pipe (it is -> _ifmt)
     # </dev/null so glow never blocks reading stdin (it does when stdin is a pipe)
-    if [ -f "$gs" ]; then CLICOLOR_FORCE=1 glow -s "$gs" -w "$wrapw" "$brief" </dev/null | _ifmt
-    else CLICOLOR_FORCE=1 glow -w "$wrapw" "$brief" </dev/null | _ifmt; fi
+    if [ -f "$gs" ]; then CLICOLOR_FORCE=1 glow -s "$gs" -w 0 "$brief" </dev/null | _ifmt "$W"
+    else CLICOLOR_FORCE=1 glow -w 0 "$brief" </dev/null | _ifmt "$W"; fi
   elif command -v bat >/dev/null 2>&1; then
     bat --style=plain --color=always --paging=never -l md "$brief"
   else
