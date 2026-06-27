@@ -88,6 +88,7 @@ if [ -n "$cur" ]; then
       # file:// URL to the shipped CHANGELOG (absolute path -> file:///…); %20 spaces,
       # and the path is plugin-owned ASCII, but strip the two JSON-breakers to be safe.
       if [ -f "$chlog" ]; then
+        # shellcheck disable=SC1003  # tr deletes double-quote + backslash; not an escape attempt
         url=$(printf 'file://%s' "$chlog" | sed 's/ /%20/g' | LC_ALL=C tr -d '"\\')
         note="$note — what changed: $url"
       fi
