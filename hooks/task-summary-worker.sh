@@ -98,7 +98,7 @@ avail=$(( rows - 2 )); [ "$avail" -lt 6 ] && avail=6
 # asking the model to interpret a line count — it scales BOTH ways).
 if   [ "$avail" -lt 16 ]; then budget_note="This is a SMALL pane (~${avail} display lines): output ONLY the '# <goal>' title, '## State', and '## Next / Open' — 1-2 terse bullets each; OMIT the other sections."
 elif [ "$avail" -lt 32 ]; then budget_note="This is a MEDIUM pane (~${avail} display lines): include all sections but stay compact — a few short bullets each (a single '—' when a section is empty)."
-else                           budget_note="This is a ROOMY pane (~${avail} display lines): include all sections with full, concrete detail; use the space."
+else                           budget_note="This is a ROOMY pane (~${avail} display lines): include all sections as bullet lists with full, concrete detail — add more bullets and more specifics per bullet, never prose paragraphs; use the space."
 fi
 
 # shellcheck disable=SC2016  # literal prompt text; $-sequences are intentional, not expansions
@@ -111,7 +111,7 @@ Be concrete — name files, tools, or components. Prefer specifics over generic 
 
 Then a line containing ONLY: ===BRIEF===
 
-PART 2 — a living session brief in GitHub markdown that re-briefs a developer who just tabbed back in. UPDATE the previous brief (given below) with what changed this turn; do NOT regenerate from scratch. Preserve durable knowledge; drop resolved or stale items from State and Next. Be concrete: name files, errors, commands, line numbers. Put each list item on ONE line — never insert a line break inside an item; the dock wraps text to the pane width itself, so a manual break renders mis-wrapped. Start with a `# <one-line goal>` title, then these sections in this order: ## State, ## Tried, ## Gotchas, ## Decisions, ## Next / Open. FOLLOW THE DISPLAY-SIZE DIRECTIVE in the user message — it says exactly which sections to include and how much detail; fitting the pane takes priority over completeness.
+PART 2 — a living session brief in GitHub markdown that re-briefs a developer who just tabbed back in. UPDATE the previous brief (given below) with what changed this turn; do NOT regenerate from scratch. Preserve durable knowledge; drop resolved or stale items from State and Next. Be concrete: name files, errors, commands, line numbers. Format EVERY section as a markdown bullet list: each point is its own `- ` item — never write prose paragraphs, and never pack several facts into one running sentence. Put each list item on ONE line — never insert a line break inside an item; the dock wraps text to the pane width itself, so a manual break renders mis-wrapped. Start with a `# <one-line goal>` title, then these sections in this order: ## State, ## Tried, ## Gotchas, ## Decisions, ## Next / Open. FOLLOW THE DISPLAY-SIZE DIRECTIVE in the user message — it says exactly which sections to include and how much detail; fitting the pane takes priority over completeness.
 If nothing material changed since the previous brief, output ONLY the word UNCHANGED after the marker.'
 
 usr="Display-size directive (the dock pane is ${rows} rows x ${cols} cols): ${budget_note} Write every bullet and line as a SINGLE line — do NOT hard-wrap or put line breaks inside an item. The dock soft-wraps text to the pane width itself; a manual line break is preserved verbatim, renders mis-wrapped, and will NOT reflow when the pane is resized. Keep bullets concise instead — a bullet that soft-wraps to N rows counts as N toward the budget. Don't exceed ~${avail} display lines.
@@ -127,7 +127,7 @@ $hist
 Most recent user request:
 $prompt
 
-Produce PART 1, then the ===BRIEF=== marker line, then PART 2."
+Produce PART 1, then the ===BRIEF=== marker line, then PART 2. In PART 2, every section under a heading must be a markdown bullet list (\`- \` items) — no prose paragraphs."
 
 # Resolve the summariser. $BRIEF_SUMMARIZER swaps the model, but it's EXECUTED, so
 # only honour it if it lives UNDER ~/.claude/ (a dir untrusted repos can't write

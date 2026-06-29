@@ -11,6 +11,17 @@ that version into the tarball's `plugin.json` and commits the bump to `main` —
 bump commit always lands one commit *after* the tag. The dates below are the release
 dates.
 
+## [1.6.8] — 2026-06-29
+
+### Fixed
+- Briefs default back to bullet points. The summariser prompt only *implied* lists,
+  and the roomy-pane tier asked for "full, concrete detail" without naming a format,
+  so Haiku had drifted toward prose paragraphs on larger panes. The system prompt now
+  mandates a markdown bullet list under every section (one `- ` item per point, never
+  prose), the roomy tier asks for more bullets rather than paragraphs, and a closing
+  reminder in the user prompt reinforces it. Format-assertion phrases the test suite
+  checks (`each list item on ONE line`, `ROOMY pane`) are preserved.
+
 ## [1.6.7] — 2026-06-26
 
 ### Fixed
